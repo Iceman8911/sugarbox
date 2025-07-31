@@ -126,6 +126,19 @@ class SugarboxEngine<
 		}
 	}
 
+	/** Creates a new snapshot with the given passage id (or the previous one) and returns a reference to it.
+	 *
+	 * This is essentially the way of linking between passages in the story.
+	 */
+	navigateTo(passageId: string = this.passageId): Snapshot<TVariables> {
+		const newSnapshot = this.#addNewSnapshot();
+
+		//@ts-expect-error - At the moment, there's no way to enforce that TVariables should not have a `_id` property
+		newSnapshot._id = passageId;
+
+		return newSnapshot;
+	}
+
 	/** Creates a brand new empty state right after the current history's index and returns a reference to it
 	 *
 	 * This will replace any existing state at the current index + 1.
