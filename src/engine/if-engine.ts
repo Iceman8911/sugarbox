@@ -52,8 +52,14 @@ class SugarboxEngine<
 		return this._getStateAtIndex(this._lastSnapshotIndex);
 	}
 
-	/** Use this for setting variables in the current snapshot */
+	/** Use this **ONLY** for setting variables in the current snapshot.
+	 *
+	 * Attempting to read properties from this will likely return `undefined`.
+	 */
 	get mutable(): Partial<TVariables> {
+		// Since the user is using this likely to modify it, clear this entry from the cache
+		this._stateCache.delete(this._lastSnapshotIndex);
+
 		return this._getSnapshotAtIndex(this._lastSnapshotIndex);
 	}
 
