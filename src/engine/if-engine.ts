@@ -23,24 +23,24 @@ class SugarboxEngine<
 	 *
 	 * This is also the "state history"
 	 */
-	private _stateSnapshots: Array<Snapshot<TVariables>>;
+	#stateSnapshots: Array<Snapshot<TVariables>>;
 
 	/**  Contains the structure of stateful variables in the engine.
 	 *
 	 * Will not be modified after initialization.
 	 */
-	private readonly _initialState: Readonly<TVariables>;
+	readonly #initialState: Readonly<TVariables>;
 
 	/** The current position in the state history that the engine is playing.
 	 *
 	 * This is used to determine the current state of the engine.
 	 */
-	private _index: number;
+	#index: number;
 
-	private _config: SugarBoxConfig;
+	#config: SugarBoxConfig;
 
 	/** Since recalculating the current state can be expensive */
-	private _stateCache: QuickLRU<number, TVariables> = new QuickLRU({
+	#stateCache: QuickLRU<number, TVariables> = new QuickLRU({
 		maxSize: 10,
 	});
 
@@ -50,13 +50,13 @@ class SugarboxEngine<
 		config: Partial<SugarBoxConfig> = defaultConfig,
 	) {
 		/** Initialize the state with the provided initial state */
-		this._initialState = initialState;
+		this.#initialState = initialState;
 
-		this._stateSnapshots = [{}];
+		this.#stateSnapshots = [{}];
 
-		this._index = 0;
+		this.#index = 0;
 
-		this._config = { ...defaultConfig, ...config };
+		this.#config = { ...defaultConfig, ...config };
 	}
 
 	/** Returns a readonly copy of the current state of stored variables.
@@ -64,7 +64,7 @@ class SugarboxEngine<
 	 * May be expensive to calculate depending on the history of the story.
 	 */
 	get vars(): Readonly<TVariables> {
-		return this._getStateAtIndex(this._index);
+		return this.#getStateAtIndex(this.#index);
 	}
 
 	/** Use this **ONLY** for setting variables in the current snapshot.
@@ -73,9 +73,9 @@ class SugarboxEngine<
 	 */
 	get mutable(): Snapshot<TVariables> {
 		// Since the user is using this likely to modify it, clear this entry from the cache
-		this._stateCache.delete(this._lastSnapshotIndex);
+		this.#stateCache.delete(this.#lastSnapshotIndex);
 
-		return this._getSnapshotAtIndex(this._lastSnapshotIndex);
+		return this.#getSnapshotAtIndex(this.#lastSnapshotIndex);
 	}
 
 	/** The current position in the state history that the engine is playing.
@@ -85,7 +85,7 @@ class SugarboxEngine<
 	 * READONLY VERSION
 	 */
 	get index(): number {
-		return this._index;
+		return this.#index;
 	}
 
 	/** Moves at least one step forward in the state history.
@@ -93,12 +93,12 @@ class SugarboxEngine<
 	 * Does nothing if already at the most recent state snapshot.
 	 */
 	forward(step = 1): void {
-		const newIndex = this._index + step;
+		const newIndex = this.#index + step;
 
-		if (newIndex >= this._snapshotCount) {
-			this._index = this._lastSnapshotIndex;
+		if (newIndex >= this.#snapshotCount) {
+			this.#index = this.#lastSnapshotIndex;
 		} else {
-			this._index = newIndex;
+			this.#index = newIndex;
 		}
 	}
 
@@ -107,12 +107,12 @@ class SugarboxEngine<
 	 * Does nothing if already at the first state snapshot.
 	 */
 	backward(step = 1): void {
-		const newIndex = this._index - step;
+		const newIndex = this.#index - step;
 
 		if (newIndex < 0) {
-			this._index = 0;
+			this.#index = 0;
 		} else {
-			this._index = newIndex;
+			this.#index = newIndex;
 		}
 	}
 
@@ -120,31 +120,31 @@ class SugarboxEngine<
 	 *
 	 * This will replace any existing state at the current index + 1.
 	 */
-	private _addNewSnapshot(): void {
-		const { maxStateCount, stateMergeCount } = this._config;
+	#addNewSnapshot(): void {
+		const { maxStateCount, stateMergeCount } = this.#config;
 
-		if (this._snapshotCount >= maxStateCount) {
+		if (this.#snapshotCount >= maxStateCount) {
 			// If the maximum number of states is reached, merge the last two snapshots
-			this._mergeSnapshots(0, stateMergeCount);
+			this.#mergeSnapshots(0, stateMergeCount);
 		}
 
-		this._stateSnapshots[this._index + 1] = {};
+		this.#stateSnapshots[this.#index + 1] = {};
 	}
 
-	private get _snapshotCount(): number {
-		return this._stateSnapshots.length;
+	get #snapshotCount(): number {
+		return this.#stateSnapshots.length;
 	}
 
-	private get _lastSnapshotIndex(): number {
-		return this._snapshotCount - 1;
+	get #lastSnapshotIndex(): number {
+		return this.#snapshotCount - 1;
 	}
 
 	/** Inclusively combines the snapshots within the given range of indexes to free up space.
 	 *
 	 * It also creates a new snapshot list to replace the old one.
 	 */
-	private _mergeSnapshots(lowerIndex: number, upperIndex: number): void {
-		const lastIndex = this._lastSnapshotIndex;
+	#mergeSnapshots(lowerIndex: number, upperIndex: number): void {
+		const lastIndex = this.#lastSnapshotIndex;
 
 		if (lastIndex < 1 || upperIndex < lowerIndex) return; // No snapshots to merge
 
@@ -158,8 +158,8 @@ class SugarboxEngine<
 
 		const newSnapshotArray: Array<Snapshot<TVariables>> = [];
 
-		for (let i = 0; i < this._snapshotCount; i++) {
-			const currentSnapshot = this._getSnapshotAtIndex(i);
+		for (let i = 0; i < this.#snapshotCount; i++) {
+			const currentSnapshot = this.#getSnapshotAtIndex(i);
 
 			// Merge the snapshot at this index into the combined snapshot
 			if (indexesToMerge.has(i)) {
@@ -181,36 +181,36 @@ class SugarboxEngine<
 			}
 		}
 
-		this._stateSnapshots = newSnapshotArray;
+		this.#stateSnapshots = newSnapshotArray;
 
-		this._stateCache.clear();
+		this.#stateCache.clear();
 	}
 
-	private _getSnapshotAtIndex(index: number): Snapshot<TVariables> {
-		const possibleSnapshot = this._stateSnapshots[index];
+	#getSnapshotAtIndex(index: number): Snapshot<TVariables> {
+		const possibleSnapshot = this.#stateSnapshots[index];
 
 		if (!possibleSnapshot) throw new RangeError("Snapshot index out of bounds");
 
 		return possibleSnapshot;
 	}
 
-	private _getStateAtIndex(
-		index: number = this._lastSnapshotIndex,
+	#getStateAtIndex(
+		index: number = this.#lastSnapshotIndex,
 	): Readonly<TVariables> {
-		const stateLength = this._snapshotCount;
+		const stateLength = this.#snapshotCount;
 
 		const effectiveIndex = Math.min(Math.max(0, index), stateLength - 1);
 
-		const cachedState = this._stateCache.get(effectiveIndex);
+		const cachedState = this.#stateCache.get(effectiveIndex);
 
 		if (cachedState) return cachedState;
 
-		const state = this._cloneState(this._initialState);
+		const state = this.#cloneState(this.#initialState);
 
 		for (let i = 0; i <= effectiveIndex; i++) {
 			let partialUpdateKey: keyof TVariables;
 
-			const partialUpdate: Snapshot<TVariables> = this._getSnapshotAtIndex(i);
+			const partialUpdate: Snapshot<TVariables> = this.#getSnapshotAtIndex(i);
 
 			for (partialUpdateKey in partialUpdate) {
 				const partialUpdateData = partialUpdate[partialUpdateKey];
@@ -223,12 +223,12 @@ class SugarboxEngine<
 		}
 
 		// Cache the state for future use
-		this._stateCache.set(effectiveIndex, state);
+		this.#stateCache.set(effectiveIndex, state);
 
 		return state;
 	}
 
-	private _cloneState(state: TVariables): TVariables {
+	#cloneState(state: TVariables): TVariables {
 		// TODO: Use structuredClone and custom clone functions for complex / custom types
 		return structuredClone(state);
 	}
