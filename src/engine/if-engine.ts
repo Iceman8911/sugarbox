@@ -15,14 +15,15 @@ const defaultConfig: SugarBoxConfig = {
 class SugarboxEngine<
 	TVariables extends Record<string, unknown> = Record<string, unknown>,
 > {
-	/** Contains the structure of stateful variables in the engine.
-	 *
-	 * The first element is the initial state, and subsequent elements are partial updates to the state as a result of moving forwards in the story.
+	/** Contains partial updates to the state as a result of moving forwards in the story.
 	 */
-	private _stateSnapshots: [
-		Readonly<TVariables>,
-		...Array<Partial<TVariables>>,
-	];
+	private _stateSnapshots: Array<Partial<TVariables>>;
+
+	/**  Contains the structure of stateful variables in the engine.
+	 *
+	 * Will not be modified after initialization.
+	 */
+	private readonly _initialState: TVariables;
 
 	private _config: SugarBoxConfig;
 
@@ -36,7 +37,9 @@ class SugarboxEngine<
 		config: SugarBoxConfig = defaultConfig,
 	) {
 		/** Initialize the state with the provided initial state */
-		this._stateSnapshots = [initialState, {}];
+		this._initialState = initialState;
+
+		this._stateSnapshots = [{}];
 
 		this._config = config;
 	}
@@ -75,9 +78,7 @@ class SugarboxEngine<
 		return this._cloneState(this._stateSnapshots[0]);
 	}
 
-	private _getSnapshotAtIndex(
-		index: number,
-	): Readonly<TVariables> | Partial<TVariables> {
+	private _getSnapshotAtIndex(index: number): Partial<TVariables> {
 		const possibleSnapshot = this._stateSnapshots[index];
 
 		if (!possibleSnapshot) throw new RangeError("Snapshot index out of bounds");
@@ -96,9 +97,9 @@ class SugarboxEngine<
 
 		if (cachedState) return cachedState;
 
-		const state = this._initialState;
+		const state = this._cloneState(this._initialState);
 
-		for (let i = 1; i <= effectiveIndex; i++) {
+		for (let i = 0; i <= effectiveIndex; i++) {
 			let partialUpdateKey: keyof TVariables;
 
 			const partialUpdate: Partial<TVariables> = this._getSnapshotAtIndex(i);
@@ -119,7 +120,7 @@ class SugarboxEngine<
 		return state;
 	}
 
-	private _cloneState(state: TVariables): Readonly<TVariables> {
+	private _cloneState(state: TVariables): TVariables {
 		// TODO: Use structuredClone and custom clone functions for complex / custom types
 		return structuredClone(state);
 	}
