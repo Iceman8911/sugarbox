@@ -1,42 +1,94 @@
-import QuickLRU from "quick-lru";
+// Terms:
+// - A state snapshot / snapshot is a snapshot of the changed variables at a given point in time. It could be the initial state, or a partial update.
+// - A state is the combination of the initial state and all partial updates (up to a specified index).
+// - A partial update only contains changes to the state, not the entire state.
+// - The initial state snapshot is the first state in the list, which is immutable.
+// - The current state snapshot is the last state in the list, which is mutable.
 
-class InteractiveFictionEngine<
+import QuickLRU from "quick-lru";
+import type { SugarBoxConfig } from "../types/if-engine";
+
+const defaultConfig: SugarBoxConfig = {
+	maxStateCount: 100,
+};
+
+class SugarboxEngine<
 	TVariables extends Record<string, unknown> = Record<string, unknown>,
 > {
 	/** Contains the structure of stateful variables in the engine.
 	 *
 	 * The first element is the initial state, and subsequent elements are partial updates to the state as a result of moving forwards in the story.
-	 *
-	 * Only the **most recent** state is mutable
 	 */
-	private _stateList: [
+	private _stateSnapshots: [
 		Readonly<TVariables>,
-		...Array<Partial<TVariables> | null>,
+		...Array<Partial<TVariables>>,
 	];
+
+	private _config: SugarBoxConfig;
 
 	/** Since recalculating the current state can be expensive */
 	private _stateCache: QuickLRU<number, TVariables> = new QuickLRU({
 		maxSize: 10,
 	});
 
-	private constructor(initialState: TVariables) {
+	constructor(
+		initialState: TVariables,
+		config: SugarBoxConfig = defaultConfig,
+	) {
 		/** Initialize the state with the provided initial state */
-		this._stateList = [initialState];
+		this._stateSnapshots = [initialState, {}];
+
+		this._config = config;
 	}
 
-	/** Returns the current state of stored variables */
-	get vars(): TVariables {
-		return this._getStateAtIndex(this._stateList.length - 1);
+	/** Returns a readonly copy of the current state of stored variables.
+	 *
+	 * May be expensive to calculate depending on the history of the story.
+	 */
+	get vars(): Readonly<TVariables> {
+		return this._getStateAtIndex(this._lastSnapshotIndex);
 	}
+
+	/** Use this for setting variables in the current snapshot */
+	get mutable(): Partial<TVariables> {
+		return this._getSnapshotAtIndex(this._lastSnapshotIndex);
+	}
+
+	/** Pushes a brand new empty state unto the state list */
+	private _addNewSnapshot(): void {
+		const { maxStateCount } = this._config;
+
+		this._stateSnapshots.push({});
+	}
+
+	private get _snapshotCount(): number {
+		return this._stateSnapshots.length;
+	}
+
+	private get _lastSnapshotIndex(): number {
+		return this._snapshotCount - 1;
+	}
+
+	private _mergeSnapshots(): void {}
 
 	private get _initialState(): TVariables {
-		return this._cloneState(this._stateList[0]);
+		return this._cloneState(this._stateSnapshots[0]);
+	}
+
+	private _getSnapshotAtIndex(
+		index: number,
+	): Readonly<TVariables> | Partial<TVariables> {
+		const possibleSnapshot = this._stateSnapshots[index];
+
+		if (!possibleSnapshot) throw new RangeError("Snapshot index out of bounds");
+
+		return possibleSnapshot;
 	}
 
 	private _getStateAtIndex(
-		index: number = this._stateList.length,
+		index: number = this._lastSnapshotIndex,
 	): Readonly<TVariables> {
-		const stateLength = this._stateList.length;
+		const stateLength = this._snapshotCount;
 
 		const effectiveIndex = Math.min(Math.max(0, index), stateLength - 1);
 
@@ -49,15 +101,13 @@ class InteractiveFictionEngine<
 		for (let i = 1; i <= effectiveIndex; i++) {
 			let partialUpdateKey: keyof TVariables;
 
-			const partialUpdate: Partial<TVariables> | null =
-				this._stateList[i] ?? null;
-
-			if (!partialUpdate) continue;
+			const partialUpdate: Partial<TVariables> = this._getSnapshotAtIndex(i);
 
 			for (partialUpdateKey in partialUpdate) {
 				const partialUpdateData = partialUpdate[partialUpdateKey];
 
-				if (partialUpdateData != null) {
+				// Ignore only undefined values
+				if (partialUpdateData !== undefined) {
 					state[partialUpdateKey] = partialUpdateData;
 				}
 			}
@@ -75,4 +125,4 @@ class InteractiveFictionEngine<
 	}
 }
 
-export { InteractiveFictionEngine };
+export { SugarboxEngine };
