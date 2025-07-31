@@ -43,6 +43,7 @@ class SugarboxEngine<
 	});
 
 	constructor(
+		readonly name: string,
 		initialState: TVariables,
 		config: SugarBoxConfig = defaultConfig,
 	) {
