@@ -61,6 +61,11 @@ class SugarboxEngine<
 	private _addNewSnapshot(): void {
 		const { maxStateCount } = this._config;
 
+		if (this._snapshotCount >= maxStateCount) {
+			// If the maximum number of states is reached, merge the last two snapshots
+			this._mergeSnapshots(0, 1);
+		}
+
 		this._stateSnapshots.push({});
 	}
 
@@ -72,10 +77,51 @@ class SugarboxEngine<
 		return this._snapshotCount - 1;
 	}
 
-	private _mergeSnapshots(): void {}
+	/** Inclusively combines the snapshots within the given range of indexes to free up space.
+	 *
+	 * It also creates a new snapshot list to replace the old one.
+	 */
+	private _mergeSnapshots(lowerIndex: number, upperIndex: number): void {
+		const lastIndex = this._lastSnapshotIndex;
 
-	private get _initialState(): TVariables {
-		return this._cloneState(this._stateSnapshots[0]);
+		if (lastIndex < 1 || upperIndex < lowerIndex) return; // No snapshots to merge
+
+		upperIndex = Math.min(upperIndex, lastIndex);
+
+		const indexesToMerge: ReadonlySet<number> = new Set(
+			Array.from(Array(upperIndex - lowerIndex + 1), (_, i) => lowerIndex + i),
+		);
+
+		const combinedSnapshot: Partial<TVariables> = {};
+
+		const newSnapshotArray: typeof this._stateSnapshots = [];
+
+		for (let i = 0; i < this._snapshotCount; i++) {
+			const currentSnapshot = this._getSnapshotAtIndex(i);
+
+			// Merge the snapshot at this index into the combined snapshot
+			if (indexesToMerge.has(i)) {
+				for (const key in currentSnapshot) {
+					const value = currentSnapshot[key];
+
+					if (value !== undefined) {
+						combinedSnapshot[key] = value;
+					}
+				}
+
+				// If this is the last snapshot in the range, add the combined snapshot
+				if (i === upperIndex) {
+					newSnapshotArray.push(combinedSnapshot);
+				}
+			} else {
+				// Keep the snapshot as is
+				newSnapshotArray.push(currentSnapshot);
+			}
+		}
+
+		this._stateSnapshots = newSnapshotArray;
+
+		this._stateCache.clear();
 	}
 
 	private _getSnapshotAtIndex(index: number): Partial<TVariables> {
