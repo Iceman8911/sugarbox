@@ -47,7 +47,7 @@ class SugarboxEngine<
 	constructor(
 		readonly name: string,
 		initialState: TVariables,
-		config: SugarBoxConfig = defaultConfig,
+		config: Partial<SugarBoxConfig> = defaultConfig,
 	) {
 		/** Initialize the state with the provided initial state */
 		this._initialState = initialState;
@@ -56,7 +56,7 @@ class SugarboxEngine<
 
 		this._index = 0;
 
-		this._config = config;
+		this._config = { ...defaultConfig, ...config };
 	}
 
 	/** Returns a readonly copy of the current state of stored variables.
