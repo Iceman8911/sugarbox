@@ -14,6 +14,8 @@ const defaultConfig = {
 	stateMergeCount: 1,
 } as const satisfies SugarBoxConfig;
 
+type Snapshot<TVariables extends Record<string, unknown>> = Partial<TVariables>;
+
 class SugarboxEngine<
 	TVariables extends Record<string, unknown> = Record<string, unknown>,
 > {
@@ -21,7 +23,7 @@ class SugarboxEngine<
 	 *
 	 * This is also the "state history"
 	 */
-	private _stateSnapshots: Array<Partial<TVariables>>;
+	private _stateSnapshots: Array<Snapshot<TVariables>>;
 
 	/**  Contains the structure of stateful variables in the engine.
 	 *
@@ -69,7 +71,7 @@ class SugarboxEngine<
 	 *
 	 * Attempting to read properties from this will likely return `undefined`.
 	 */
-	get mutable(): Partial<TVariables> {
+	get mutable(): Snapshot<TVariables> {
 		// Since the user is using this likely to modify it, clear this entry from the cache
 		this._stateCache.delete(this._lastSnapshotIndex);
 
@@ -152,9 +154,9 @@ class SugarboxEngine<
 			Array.from(Array(upperIndex - lowerIndex + 1), (_, i) => lowerIndex + i),
 		);
 
-		const combinedSnapshot: Partial<TVariables> = {};
+		const combinedSnapshot: Snapshot<TVariables> = {};
 
-		const newSnapshotArray: typeof this._stateSnapshots = [];
+		const newSnapshotArray: Array<Snapshot<TVariables>> = [];
 
 		for (let i = 0; i < this._snapshotCount; i++) {
 			const currentSnapshot = this._getSnapshotAtIndex(i);
@@ -184,7 +186,7 @@ class SugarboxEngine<
 		this._stateCache.clear();
 	}
 
-	private _getSnapshotAtIndex(index: number): Partial<TVariables> {
+	private _getSnapshotAtIndex(index: number): Snapshot<TVariables> {
 		const possibleSnapshot = this._stateSnapshots[index];
 
 		if (!possibleSnapshot) throw new RangeError("Snapshot index out of bounds");
@@ -208,7 +210,7 @@ class SugarboxEngine<
 		for (let i = 0; i <= effectiveIndex; i++) {
 			let partialUpdateKey: keyof TVariables;
 
-			const partialUpdate: Partial<TVariables> = this._getSnapshotAtIndex(i);
+			const partialUpdate: Snapshot<TVariables> = this._getSnapshotAtIndex(i);
 
 			for (partialUpdateKey in partialUpdate) {
 				const partialUpdateData = partialUpdate[partialUpdateKey];
