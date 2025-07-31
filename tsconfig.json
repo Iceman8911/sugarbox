@@ -10,7 +10,8 @@
 		"isolatedDeclarations": true,
 		"outDir": "./dist",
 		"rootDir": "./src",
-		"noUncheckedIndexedAccess": true
+		"noUncheckedIndexedAccess": true,
+		"noImplicitOverride": true
 	},
 	"include": ["src/**/*"],
 	"paths": {
