@@ -8,8 +8,10 @@
 import QuickLRU from "quick-lru";
 import type { SugarBoxConfig } from "../types/if-engine";
 
+const defaultConfig = {
 	maxStateCount: 100,
-};
+
+	stateMergeCount: 1,
 } as const satisfies SugarBoxConfig;
 
 class SugarboxEngine<
@@ -65,11 +67,11 @@ class SugarboxEngine<
 
 	/** Pushes a brand new empty state unto the state list */
 	private _addNewSnapshot(): void {
-		const { maxStateCount } = this._config;
+		const { maxStateCount, stateMergeCount } = this._config;
 
 		if (this._snapshotCount >= maxStateCount) {
 			// If the maximum number of states is reached, merge the last two snapshots
-			this._mergeSnapshots(0, 1);
+			this._mergeSnapshots(0, stateMergeCount);
 		}
 
 		this._stateSnapshots.push({});
