@@ -1,8 +1,8 @@
 // Terms:
 // - A state snapshot / snapshot is a snapshot of the changed variables at a given point in time. It could be the initial state, or a partial update.
-// - A state is the combination of the initial state and all partial updates (up to a specified index).
+// - The initial state is the original variables object, which is immutable.
+// - The state is the combination of the initial state and all partial updates (up to a specified index).
 // - A partial update only contains changes to the state, not the entire state.
-// - The initial state snapshot is the first state in the list, which is immutable.
 // - The current state snapshot is the last state in the list, which is mutable.
 
 import QuickLRU from "quick-lru";
