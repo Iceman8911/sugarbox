@@ -18,6 +18,8 @@ class SugarboxEngine<
 	TVariables extends Record<string, unknown> = Record<string, unknown>,
 > {
 	/** Contains partial updates to the state as a result of moving forwards in the story.
+	 *
+	 * This is also the "state history"
 	 */
 	private _stateSnapshots: Array<Partial<TVariables>>;
 
