@@ -126,11 +126,11 @@ class SugarboxEngine<
 		}
 	}
 
-	/** Creates a brand new empty state right after the current history's index.
+	/** Creates a brand new empty state right after the current history's index and returns a reference to it
 	 *
 	 * This will replace any existing state at the current index + 1.
 	 */
-	#addNewSnapshot(): void {
+	#addNewSnapshot(): Snapshot<TVariables> {
 		const { maxStateCount, stateMergeCount } = this.#config;
 
 		if (this.#snapshotCount >= maxStateCount) {
@@ -138,7 +138,11 @@ class SugarboxEngine<
 			this.#mergeSnapshots(0, stateMergeCount);
 		}
 
-		this.#stateSnapshots[this.#index + 1] = {};
+		const indexForNewSnapshot = this.#index + 1;
+
+		this.#stateSnapshots[indexForNewSnapshot] = {};
+
+		return this.#getSnapshotAtIndex(indexForNewSnapshot);
 	}
 
 	get #snapshotCount(): number {
