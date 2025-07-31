@@ -8,9 +8,9 @@
 import QuickLRU from "quick-lru";
 import type { SugarBoxConfig } from "../types/if-engine";
 
-const defaultConfig: SugarBoxConfig = {
 	maxStateCount: 100,
 };
+} as const satisfies SugarBoxConfig;
 
 class SugarboxEngine<
 	TVariables extends Record<string, unknown> = Record<string, unknown>,
