@@ -22,6 +22,7 @@ type Snapshot<TVariables extends Record<string, unknown>> = Partial<
 >;
 
 class SugarboxEngine<
+	TPassageType extends string | object,
 	TVariables extends Record<string, unknown> = Record<string, unknown>,
 > {
 	/** Contains partial updates to the state as a result of moving forwards in the story.
@@ -43,6 +44,12 @@ class SugarboxEngine<
 	#index: number;
 
 	#config: SugarBoxConfig;
+
+	/** Indexed by the passage id.
+	 *
+	 * Each value is the passage data, which could be a html string, markdown string, regular string, or more complex things like a jsx component, etc.
+	 */
+	#passages = new Map<string, TPassageType>();
 
 	/** Since recalculating the current state can be expensive */
 	#stateCache: QuickLRU<number, State<TVariables>> = new QuickLRU({
@@ -88,6 +95,14 @@ class SugarboxEngine<
 		return this.#getStateAtIndex(this.#index)._id;
 	}
 
+	/** Returns the passage data for the current state.
+	 *
+	 * If the passage does not exist, returns `null`.
+	 */
+	get passage(): TPassageType | null {
+		return this.#passages.get(this.passageId) ?? null;
+	}
+
 	/** The current position in the state history that the engine is playing.
 	 *
 	 * This is used to determine the current state of the engine.
@@ -126,7 +141,17 @@ class SugarboxEngine<
 		}
 	}
 
-	/** Creates a new snapshot with the given passage id (or the previous one) and returns a reference to it.
+	/** Adds a new passage to the engine.
+	 *
+	 * The passage id should be unique, and the data can be anything that you want to store for the passage.
+	 *
+	 * If the passage already exists, it will be overwritten.
+	 */
+	addPassage(passageId: string, passageData: TPassageType): void {
+		this.#passages.set(passageId, passageData);
+	}
+
+	/** Creates and moves the index over to a new snapshot with the given passage id (or the previous one) and returns a reference to it.
 	 *
 	 * This is essentially the way of linking between passages in the story.
 	 */
@@ -135,6 +160,8 @@ class SugarboxEngine<
 
 		//@ts-expect-error - At the moment, there's no way to enforce that TVariables should not have a `_id` property
 		newSnapshot._id = passageId;
+
+		this.#index++;
 
 		return newSnapshot;
 	}
