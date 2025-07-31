@@ -1,3 +1,4 @@
-export function greet(name: string): string {
-	return `Hello, ${name}!`;
-}
+import { SugarboxEngine } from "./engine/if-engine";
+import type { SugarBoxConfig } from "./types/if-engine";
+
+export { SugarboxEngine, type SugarBoxConfig };
