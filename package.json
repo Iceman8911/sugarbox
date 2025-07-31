@@ -62,5 +62,8 @@
 	"bugs": {
 		"url": "https://github.com/Iceman8911/sugarbox/issues"
 	},
-	"license": "MIT"
+	"license": "MIT",
+	"dependencies": {
+		"quick-lru": "^7.0.1"
+	}
 }

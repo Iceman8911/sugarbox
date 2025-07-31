@@ -1,3 +1,5 @@
+import QuickLRU from "quick-lru";
+
 class InteractiveFictionEngine<
 	TVariables extends Record<string, unknown> = Record<string, unknown>,
 > {
@@ -12,7 +14,12 @@ class InteractiveFictionEngine<
 		...Array<Partial<TVariables> | null>,
 	];
 
-	constructor(initialState: TVariables) {
+	/** Since recalculating the current state can be expensive */
+	private _stateCache: QuickLRU<number, TVariables> = new QuickLRU({
+		maxSize: 10,
+	});
+
+	private constructor(initialState: TVariables) {
 		/** Initialize the state with the provided initial state */
 		this._stateList = [initialState];
 	}
@@ -33,6 +40,10 @@ class InteractiveFictionEngine<
 
 		const effectiveIndex = Math.min(Math.max(0, index), stateLength - 1);
 
+		const cachedState = this._stateCache.get(effectiveIndex);
+
+		if (cachedState) return cachedState;
+
 		const state = this._initialState;
 
 		for (let i = 1; i <= effectiveIndex; i++) {
@@ -51,6 +62,9 @@ class InteractiveFictionEngine<
 				}
 			}
 		}
+
+		// Cache the state for future use
+		this._stateCache.set(effectiveIndex, state);
 
 		return state;
 	}
