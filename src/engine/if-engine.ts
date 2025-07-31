@@ -121,9 +121,9 @@ class SugarboxEngine<
 		const newIndex = this.#index + step;
 
 		if (newIndex >= this.#snapshotCount) {
-			this.#index = this.#lastSnapshotIndex;
+			this.#setIndex(this.#lastSnapshotIndex);
 		} else {
-			this.#index = newIndex;
+			this.#setIndex(newIndex);
 		}
 	}
 
@@ -135,9 +135,9 @@ class SugarboxEngine<
 		const newIndex = this.#index - step;
 
 		if (newIndex < 0) {
-			this.#index = 0;
+			this.#setIndex(0);
 		} else {
-			this.#index = newIndex;
+			this.#setIndex(newIndex);
 		}
 	}
 
@@ -161,9 +161,17 @@ class SugarboxEngine<
 		//@ts-expect-error - At the moment, there's no way to enforce that TVariables should not have a `_id` property
 		newSnapshot._id = passageId;
 
-		this.#index++;
+		this.#setIndex(this.#index + 1);
 
 		return newSnapshot;
+	}
+
+	#setIndex(val: number) {
+		if (val < 0 || val >= this.#snapshotCount) {
+			throw new RangeError("Index out of bounds");
+		}
+
+		this.#index = val;
 	}
 
 	/** Creates a brand new empty state right after the current history's index and returns a reference to it
