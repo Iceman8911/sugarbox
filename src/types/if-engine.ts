@@ -10,4 +10,10 @@ type SugarBoxConfig = {
 	stateMergeCount: number;
 };
 
-export type { SugarBoxVariables, SugarBoxConfig };
+/** Special information attached to every state snapshot */
+type SugarBoxMetadata = {
+	/** Passage ID for the state snapshot */
+	_id: string;
+};
+
+export type { SugarBoxVariables, SugarBoxConfig, SugarBoxMetadata };

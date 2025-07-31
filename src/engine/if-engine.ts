@@ -6,7 +6,7 @@
 // - The current state snapshot is the last state in the list, which is mutable.
 
 import QuickLRU from "quick-lru";
-import type { SugarBoxConfig } from "../types/if-engine";
+import type { SugarBoxConfig, SugarBoxMetadata } from "../types/if-engine";
 
 const defaultConfig = {
 	maxStateCount: 100,
@@ -14,7 +14,12 @@ const defaultConfig = {
 	stateMergeCount: 1,
 } as const satisfies SugarBoxConfig;
 
-type Snapshot<TVariables extends Record<string, unknown>> = Partial<TVariables>;
+type State<TVariables extends Record<string, unknown>> = TVariables &
+	SugarBoxMetadata;
+
+type Snapshot<TVariables extends Record<string, unknown>> = Partial<
+	TVariables & SugarBoxMetadata
+>;
 
 class SugarboxEngine<
 	TVariables extends Record<string, unknown> = Record<string, unknown>,
@@ -29,7 +34,7 @@ class SugarboxEngine<
 	 *
 	 * Will not be modified after initialization.
 	 */
-	readonly #initialState: Readonly<TVariables>;
+	readonly #initialState: Readonly<State<TVariables>>;
 
 	/** The current position in the state history that the engine is playing.
 	 *
@@ -40,7 +45,7 @@ class SugarboxEngine<
 	#config: SugarBoxConfig;
 
 	/** Since recalculating the current state can be expensive */
-	#stateCache: QuickLRU<number, TVariables> = new QuickLRU({
+	#stateCache: QuickLRU<number, State<TVariables>> = new QuickLRU({
 		maxSize: 10,
 	});
 
@@ -50,7 +55,7 @@ class SugarboxEngine<
 		config: Partial<SugarBoxConfig> = defaultConfig,
 	) {
 		/** Initialize the state with the provided initial state */
-		this.#initialState = initialState;
+		this.#initialState = { ...initialState, _id: "" };
 
 		this.#stateSnapshots = [{}];
 
@@ -76,6 +81,11 @@ class SugarboxEngine<
 		this.#stateCache.delete(this.#lastSnapshotIndex);
 
 		return this.#getSnapshotAtIndex(this.#lastSnapshotIndex);
+	}
+
+	/** Returns the id to the appropriate passage for the current state */
+	get passageId(): string {
+		return this.#getStateAtIndex(this.#index)._id;
 	}
 
 	/** The current position in the state history that the engine is playing.
@@ -163,7 +173,9 @@ class SugarboxEngine<
 
 			// Merge the snapshot at this index into the combined snapshot
 			if (indexesToMerge.has(i)) {
-				for (const key in currentSnapshot) {
+				let key: keyof Snapshot<TVariables>;
+
+				for (key in currentSnapshot) {
 					const value = currentSnapshot[key];
 
 					if (value !== undefined) {
@@ -196,7 +208,7 @@ class SugarboxEngine<
 
 	#getStateAtIndex(
 		index: number = this.#lastSnapshotIndex,
-	): Readonly<TVariables> {
+	): Readonly<State<TVariables>> {
 		const stateLength = this.#snapshotCount;
 
 		const effectiveIndex = Math.min(Math.max(0, index), stateLength - 1);
@@ -228,7 +240,7 @@ class SugarboxEngine<
 		return state;
 	}
 
-	#cloneState(state: TVariables): TVariables {
+	#cloneState(state: State<TVariables>): State<TVariables> {
 		// TODO: Use structuredClone and custom clone functions for complex / custom types
 		return structuredClone(state);
 	}
