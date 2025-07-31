@@ -23,7 +23,7 @@ class SugarboxEngine<
 	 *
 	 * Will not be modified after initialization.
 	 */
-	private readonly _initialState: TVariables;
+	private readonly _initialState: Readonly<TVariables>;
 
 	private _config: SugarBoxConfig;
 
