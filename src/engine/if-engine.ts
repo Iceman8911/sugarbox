@@ -29,6 +29,12 @@ class SugarboxEngine<
 	 */
 	private readonly _initialState: Readonly<TVariables>;
 
+	/** The current position in the state history that the engine is playing.
+	 *
+	 * This is used to determine the current state of the engine.
+	 */
+	private _index: number;
+
 	private _config: SugarBoxConfig;
 
 	/** Since recalculating the current state can be expensive */
@@ -45,6 +51,8 @@ class SugarboxEngine<
 
 		this._stateSnapshots = [{}];
 
+		this._index = 0;
+
 		this._config = config;
 	}
 
@@ -53,7 +61,7 @@ class SugarboxEngine<
 	 * May be expensive to calculate depending on the history of the story.
 	 */
 	get vars(): Readonly<TVariables> {
-		return this._getStateAtIndex(this._lastSnapshotIndex);
+		return this._getStateAtIndex(this._index);
 	}
 
 	/** Use this **ONLY** for setting variables in the current snapshot.
@@ -67,7 +75,48 @@ class SugarboxEngine<
 		return this._getSnapshotAtIndex(this._lastSnapshotIndex);
 	}
 
-	/** Pushes a brand new empty state unto the state list */
+	/** The current position in the state history that the engine is playing.
+	 *
+	 * This is used to determine the current state of the engine.
+	 *
+	 * READONLY VERSION
+	 */
+	get index(): number {
+		return this._index;
+	}
+
+	/** Moves at least one step forward in the state history.
+	 *
+	 * Does nothing if already at the most recent state snapshot.
+	 */
+	forward(step = 1): void {
+		const newIndex = this._index + step;
+
+		if (newIndex >= this._snapshotCount) {
+			this._index = this._lastSnapshotIndex;
+		} else {
+			this._index = newIndex;
+		}
+	}
+
+	/** Moves at least one step backwards in the state history.
+	 *
+	 * Does nothing if already at the first state snapshot.
+	 */
+	backward(step = 1): void {
+		const newIndex = this._index - step;
+
+		if (newIndex < 0) {
+			this._index = 0;
+		} else {
+			this._index = newIndex;
+		}
+	}
+
+	/** Creates a brand new empty state right after the current history's index.
+	 *
+	 * This will replace any existing state at the current index + 1.
+	 */
 	private _addNewSnapshot(): void {
 		const { maxStateCount, stateMergeCount } = this._config;
 
@@ -76,7 +125,7 @@ class SugarboxEngine<
 			this._mergeSnapshots(0, stateMergeCount);
 		}
 
-		this._stateSnapshots.push({});
+		this._stateSnapshots[this._index + 1] = {};
 	}
 
 	private get _snapshotCount(): number {
