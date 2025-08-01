@@ -83,7 +83,7 @@ class SugarboxEngine<
 
 	#eventTarget = new EventTarget();
 
-	constructor(
+	private constructor(
 		readonly name: string,
 		initialState: TVariables,
 		config: Partial<SugarBoxConfig> = defaultConfig,
@@ -96,6 +96,26 @@ class SugarboxEngine<
 		this.#index = 0;
 
 		this.#config = { ...defaultConfig, ...config };
+	}
+
+	/** Use this to initialize the engine */
+	static init<
+		TPassageType extends string | object,
+		TVariables extends Record<string, unknown> = Record<string, unknown>,
+	>(args: {
+		name: string;
+		variables: TVariables;
+		config?: Partial<SugarBoxConfig>;
+	}): SugarboxEngine<TPassageType, TVariables> {
+		const { name, variables, config } = args;
+
+		const engine = new SugarboxEngine<TPassageType, TVariables>(
+			name,
+			variables,
+			config,
+		);
+
+		return engine;
 	}
 
 	/** Returns a readonly copy of the current state of stored variables.
