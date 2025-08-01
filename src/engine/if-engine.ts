@@ -104,16 +104,25 @@ class SugarboxEngine<
 		TVariables extends Record<string, unknown> = Record<string, unknown>,
 	>(args: {
 		name: string;
+
 		variables: TVariables;
+
+		/** Critical passages that must be available asap.
+		 *
+		 * The first argument is the passage id */
+		passages: [string, TPassageType][];
+
 		config?: Partial<SugarBoxConfig>;
 	}): SugarboxEngine<TPassageType, TVariables> {
-		const { name, variables, config } = args;
+		const { config, name, passages, variables } = args;
 
 		const engine = new SugarboxEngine<TPassageType, TVariables>(
 			name,
 			variables,
 			config,
 		);
+
+		engine.addPassages(passages);
 
 		return engine;
 	}
@@ -196,6 +205,13 @@ class SugarboxEngine<
 	 */
 	addPassage(passageId: string, passageData: TPassageType): void {
 		this.#passages.set(passageId, passageData);
+	}
+
+	/** Like `addPassage`, but takes in a collection */
+	addPassages(passages: [string, TPassageType][]): void {
+		for (const { "0": passageId, "1": passageData } of passages) {
+			this.addPassage(passageId, passageData);
+		}
 	}
 
 	/** Creates and moves the index over to a new snapshot with the given passage id (or the previous one) and returns a reference to it.
