@@ -5,7 +5,7 @@
 // - A partial update only contains changes to the state, not the entire state.
 // - The current state snapshot is the last state in the list, which is mutable.
 
-import QuickLRU from "quick-lru";
+import type { CacheAdapter } from "../types/adapters";
 import type { SugarBoxConfig, SugarBoxMetadata } from "../types/if-engine";
 
 const defaultConfig = {
@@ -19,6 +19,10 @@ type State<TVariables extends Record<string, unknown>> = TVariables &
 
 type Snapshot<TVariables extends Record<string, unknown>> = Partial<
 	TVariables & SugarBoxMetadata
+>;
+
+type Config<TState extends Record<string, unknown>> = Partial<
+	SugarBoxConfig<State<TState>>
 >;
 
 /** Events fired from a `SugarBoxEngine` instance */
@@ -77,16 +81,14 @@ class SugarboxEngine<
 	#passages = new Map<string, TPassageType>();
 
 	/** Since recalculating the current state can be expensive */
-	#stateCache: QuickLRU<number, State<TVariables>> = new QuickLRU({
-		maxSize: 10,
-	});
+	#stateCache?: CacheAdapter<number, State<TVariables>>;
 
 	#eventTarget = new EventTarget();
 
 	private constructor(
 		readonly name: string,
 		initialState: TVariables,
-		config: Partial<SugarBoxConfig> = defaultConfig,
+		config: Config<TVariables> = defaultConfig,
 	) {
 		/** Initialize the state with the provided initial state */
 		this.#initialState = { ...initialState, _id: "" };
@@ -96,6 +98,12 @@ class SugarboxEngine<
 		this.#index = 0;
 
 		this.#config = { ...defaultConfig, ...config };
+
+		const { cache } = config;
+
+		if (cache) {
+			this.#stateCache = cache;
+		}
 	}
 
 	/** Use this to initialize the engine */
@@ -112,7 +120,7 @@ class SugarboxEngine<
 		 * The first argument is the passage id */
 		passages: [string, TPassageType][];
 
-		config?: Partial<SugarBoxConfig>;
+		config?: Config<TVariables>;
 	}): SugarboxEngine<TPassageType, TVariables> {
 		const { config, name, passages, variables } = args;
 
@@ -141,7 +149,7 @@ class SugarboxEngine<
 	 */
 	get mutable(): Snapshot<TVariables> {
 		// Since the user is using this likely to modify it, clear this entry from the cache
-		this.#stateCache.delete(this.#lastSnapshotIndex);
+		this.#stateCache?.delete(this.#lastSnapshotIndex);
 
 		return this.#getSnapshotAtIndex(this.#lastSnapshotIndex);
 	}
@@ -364,7 +372,7 @@ class SugarboxEngine<
 
 		this.#stateSnapshots = newSnapshotArray;
 
-		this.#stateCache.clear();
+		this.#stateCache?.clear();
 	}
 
 	/**
@@ -386,7 +394,7 @@ class SugarboxEngine<
 
 		const effectiveIndex = Math.min(Math.max(0, index), stateLength - 1);
 
-		const cachedState = this.#stateCache.get(effectiveIndex);
+		const cachedState = this.#stateCache?.get(effectiveIndex);
 
 		if (cachedState) return cachedState;
 
@@ -408,7 +416,7 @@ class SugarboxEngine<
 		}
 
 		// Cache the state for future use
-		this.#stateCache.set(effectiveIndex, state);
+		this.#stateCache?.set(effectiveIndex, state);
 
 		return state;
 	}

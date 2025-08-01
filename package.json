@@ -44,7 +44,8 @@
 		"bumpp": "^10.2.1",
 		"bunup": "^0.9.1",
 		"husky": "^9.1.7",
-		"typescript": "^5.8.3"
+		"typescript": "^5.8.3",
+		"quick-lru": "^7.0.1"
 	},
 	"repository": {
 		"type": "git",
@@ -62,8 +63,5 @@
 	"bugs": {
 		"url": "https://github.com/Iceman8911/sugarbox/issues"
 	},
-	"license": "MIT",
-	"dependencies": {
-		"quick-lru": "^7.0.1"
-	}
+	"license": "MIT"
 }
