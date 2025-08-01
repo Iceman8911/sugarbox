@@ -21,6 +21,31 @@ type Snapshot<TVariables extends Record<string, unknown>> = Partial<
 	TVariables & SugarBoxMetadata
 >;
 
+/** Events fired from a `SugarBoxEngine` instance */
+type SugarBoxEvents<TPassageData, TState> = {
+	":passageChange": Readonly<{
+		/** The previous passage before the transition */
+		oldPassage: TPassageData | null;
+
+		/** The new passage after the transition */
+		newPassage: TPassageData | null;
+	}>;
+
+	":stateChange": Readonly<{
+		/** The previous state of variables before the transition */
+		oldState: TState;
+
+		/** The new state after the transition */
+		newState: TState;
+	}>;
+
+	":init": null;
+};
+
+/** The main engine for Sugarbox that provides headless interface to basic utilities required for Interactive Fiction
+ *
+ * Dispatches custom events that can be listened to with "addEventListener"
+ */
 class SugarboxEngine<
 	TPassageType extends string | object,
 	TVariables extends Record<string, unknown> = Record<string, unknown>,
@@ -55,6 +80,8 @@ class SugarboxEngine<
 	#stateCache: QuickLRU<number, State<TVariables>> = new QuickLRU({
 		maxSize: 10,
 	});
+
+	#eventTarget = new EventTarget();
 
 	constructor(
 		readonly name: string,
@@ -166,12 +193,59 @@ class SugarboxEngine<
 		return newSnapshot;
 	}
 
+	/** Subscribe to an event */
+	on<TEventType extends keyof SugarBoxEvents<TPassageType, TVariables>>(
+		type: TEventType,
+		listener: (
+			event: CustomEvent<SugarBoxEvents<TPassageType, TVariables>[TEventType]>,
+		) => void,
+		options?: boolean | AddEventListenerOptions,
+	): void {
+		//@ts-expect-error TS doesn't know that the custom event will exist at runtime
+		this.#eventTarget.addEventListener(type, listener, options);
+	}
+
+	/** Unsubscribe from an event */
+	off<TEventType extends keyof SugarBoxEvents<TPassageType, TVariables>>(
+		type: TEventType,
+		listener:
+			| ((
+					event: CustomEvent<
+						SugarBoxEvents<TPassageType, TVariables>[TEventType]
+					>,
+			  ) => void)
+			| null,
+		options?: boolean | AddEventListenerOptions,
+	): void {
+		//@ts-expect-error TS doesn't know that the custom event will exist at runtime
+		this.#eventTarget.removeEventListener(type, listener, options);
+	}
+
 	#setIndex(val: number) {
 		if (val < 0 || val >= this.#snapshotCount) {
 			throw new RangeError("Index out of bounds");
 		}
 
+		const oldPassage = this.passage;
+
+		const oldState = this.vars;
+
 		this.#index = val;
+
+		// Emit the events for passage and state changes
+		this.#dispatchCustomEvent(
+			this.#createCustomEvent(":passageChange", {
+				newPassage: this.passage,
+				oldPassage,
+			}),
+		);
+
+		this.#dispatchCustomEvent(
+			this.#createCustomEvent(":stateChange", {
+				newState: this.vars,
+				oldState,
+			}),
+		);
 	}
 
 	/** Creates a brand new empty state right after the current history's index and returns a reference to it
@@ -290,6 +364,19 @@ class SugarboxEngine<
 		this.#stateCache.set(effectiveIndex, state);
 
 		return state;
+	}
+
+	#createCustomEvent<
+		TEventType extends keyof SugarBoxEvents<TPassageType, TVariables>,
+	>(
+		name: TEventType,
+		data: SugarBoxEvents<TPassageType, TVariables>[TEventType],
+	): CustomEvent<SugarBoxEvents<TPassageType, TVariables>[TEventType]> {
+		return new CustomEvent(name, { detail: data });
+	}
+
+	#dispatchCustomEvent(event: CustomEvent): boolean {
+		return this.#eventTarget.dispatchEvent(event);
 	}
 
 	#cloneState(state: State<TVariables>): State<TVariables> {
