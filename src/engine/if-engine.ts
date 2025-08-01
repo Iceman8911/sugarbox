@@ -253,19 +253,15 @@ class SugarboxEngine<
 		this.#index = val;
 
 		// Emit the events for passage and state changes
-		this.#dispatchCustomEvent(
-			this.#createCustomEvent(":passageChange", {
-				newPassage: this.passage,
-				oldPassage,
-			}),
-		);
+		this.#emitCustomEvent(":passageChange", {
+			newPassage: this.passage,
+			oldPassage,
+		});
 
-		this.#dispatchCustomEvent(
-			this.#createCustomEvent(":stateChange", {
-				newState: this.vars,
-				oldState,
-			}),
-		);
+		this.#emitCustomEvent(":stateChange", {
+			newState: this.vars,
+			oldState,
+		});
 	}
 
 	/** Creates a brand new empty state right after the current history's index and returns a reference to it
@@ -397,6 +393,15 @@ class SugarboxEngine<
 
 	#dispatchCustomEvent(event: CustomEvent): boolean {
 		return this.#eventTarget.dispatchEvent(event);
+	}
+
+	#emitCustomEvent<
+		TEventType extends keyof SugarBoxEvents<TPassageType, TVariables>,
+	>(
+		name: TEventType,
+		data: SugarBoxEvents<TPassageType, TVariables>[TEventType],
+	): boolean {
+		return this.#dispatchCustomEvent(this.#createCustomEvent(name, data));
 	}
 
 	#cloneState(state: State<TVariables>): State<TVariables> {
