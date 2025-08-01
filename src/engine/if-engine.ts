@@ -351,6 +351,10 @@ class SugarboxEngine<
 		this.#stateCache.clear();
 	}
 
+	/**
+	 *
+	 * @throws a `RangeError` if the given index does not exist
+	 */
 	#getSnapshotAtIndex(index: number): Snapshot<TVariables> {
 		const possibleSnapshot = this.#stateSnapshots[index];
 
