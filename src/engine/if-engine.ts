@@ -201,8 +201,15 @@ class SugarboxEngine<
 	/** Creates and moves the index over to a new snapshot with the given passage id (or the previous one) and returns a reference to it.
 	 *
 	 * This is essentially the way of linking between passages in the story.
+	 *
+	 * @throws if the passage id hasn't been added to the engine
 	 */
 	navigateTo(passageId: string = this.passageId): Snapshot<TVariables> {
+		if (!this.#isPassageIdValid(passageId))
+			throw new Error(
+				`Cannot navigate: Passage with ID '${passageId}' not found. Add it using addPassage().`,
+			);
+
 		const newSnapshot = this.#addNewSnapshot();
 
 		//@ts-expect-error - At the moment, there's no way to enforce that TVariables should not have a `_id` property
@@ -239,6 +246,10 @@ class SugarboxEngine<
 	): void {
 		//@ts-expect-error TS doesn't know that the custom event will exist at runtime
 		this.#eventTarget.removeEventListener(type, listener, options);
+	}
+
+	#isPassageIdValid(passageId: string): boolean {
+		return this.#passages.has(passageId);
 	}
 
 	#setIndex(val: number) {
