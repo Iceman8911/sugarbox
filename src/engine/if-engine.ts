@@ -88,6 +88,7 @@ class SugarboxEngine<
 	private constructor(
 		readonly name: string,
 		initialState: TVariables,
+		essentialPassages: [string, TPassageType][],
 		config: Config<TVariables> = defaultConfig,
 	) {
 		/** Initialize the state with the provided initial state */
@@ -98,6 +99,8 @@ class SugarboxEngine<
 		this.#index = 0;
 
 		this.#config = { ...defaultConfig, ...config };
+
+		this.addPassages(essentialPassages);
 
 		const { cache } = config;
 
@@ -127,10 +130,9 @@ class SugarboxEngine<
 		const engine = new SugarboxEngine<TPassageType, TVariables>(
 			name,
 			variables,
+			passages,
 			config,
 		);
-
-		engine.addPassages(passages);
 
 		return engine;
 	}
