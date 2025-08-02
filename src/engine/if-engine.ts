@@ -6,13 +6,23 @@
 // - The current state snapshot is the last state in the list, which is mutable.
 
 import type { CacheAdapter } from "../types/adapters";
-import type { SugarBoxConfig, SugarBoxMetadata } from "../types/if-engine";
+import type {
+	SugarBoxConfig,
+	SugarBoxMetadata,
+	SugarBoxSaveKey,
+} from "../types/if-engine";
 
 const defaultConfig = {
 	maxStateCount: 100,
 
 	stateMergeCount: 1,
+
+	saveSlots: 20,
 } as const satisfies SugarBoxConfig;
+
+const MINIMUM_SAVE_SLOT_INDEX = 0;
+
+const MINIMUM_SAVE_SLOTS = 1;
 
 type StateWithMetadata<TVariables extends Record<string, unknown>> =
 	TVariables & SugarBoxMetadata;
@@ -90,6 +100,7 @@ class SugarboxEngine<
 	#eventTarget = new EventTarget();
 
 	private constructor(
+		/** Must be unique to prevent conflicts */
 		readonly name: string,
 		initialState: TVariables,
 		essentialPassages: [string, TPassageType][],
@@ -103,11 +114,14 @@ class SugarboxEngine<
 
 		this.#index = 0;
 
+		const { cache, saveSlots } = config;
+
+		if (saveSlots && saveSlots < MINIMUM_SAVE_SLOTS)
+			throw new Error(`Invalid number of save slots: ${saveSlots}`);
+
 		this.#config = { ...defaultConfig, ...config };
 
 		this.addPassages(essentialPassages);
-
-		const { cache } = config;
 
 		if (cache) {
 			this.#stateCache = cache;
@@ -327,6 +341,39 @@ class SugarboxEngine<
 		this.#eventTarget.removeEventListener(type, listener, options);
 	}
 
+	/** Using the provided persistence adapter, this saves all vital data for the combined state, metadata, and current index  */
+	async save(saveSlot: number): Promise<void> {
+		const { saveSlots: MAX_SAVE_SLOTS, persistence } = this.#config;
+
+		const ERROR_TEXT = "Unable to save.";
+
+		if (saveSlot < MINIMUM_SAVE_SLOT_INDEX || saveSlot >= MAX_SAVE_SLOTS) {
+			throw new Error(`${ERROR_TEXT} Save slot ${saveSlot} is invalid.`);
+		}
+
+		if (!persistence) {
+			throw new Error(`${ERROR_TEXT} No persistence adapter`);
+		}
+
+		const saveKey = this.#getSaveKeyFromSaveSlotNumber(saveSlot);
+
+		await persistence.set(saveKey, {
+			intialState: this.#initialState,
+			snapshots: this.#stateSnapshots,
+			storyIndex: this.index,
+		});
+	}
+
+	// async load(saveSlot: number) {}
+
+	// async saveToDisk() {}
+
+	// async loadFromDisk(data: unknown) {}
+
+	#getSaveKeyFromSaveSlotNumber(saveSlot: number): SugarBoxSaveKey {
+		return `sugarbox-${this.name}-${saveSlot}`;
+	}
+
 	#isPassageIdValid(passageId: string): boolean {
 		return this.#passages.has(passageId);
 	}
@@ -520,5 +567,24 @@ class SugarboxEngine<
 		return structuredClone(state);
 	}
 }
+
+/** General prupose cloning helper */
+function clone<TData>(val: TData): TData {
+	// TODO: Add support for custom userland classes
+	return structuredClone(val);
+}
+
+// For testing
+const engine = SugarboxEngine.init({
+	name: "Test",
+	passages: [["Test Passage", "Balls"]],
+	variables: { name: "Dave", inventory: { gold: 123, gems: 12 } },
+});
+
+engine.setVars((state) => {
+	state.name = "Sheep";
+
+	state.inventory.gems = 21;
+});
 
 export { SugarboxEngine };
