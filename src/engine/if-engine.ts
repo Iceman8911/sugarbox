@@ -14,15 +14,19 @@ const defaultConfig = {
 	stateMergeCount: 1,
 } as const satisfies SugarBoxConfig;
 
-type State<TVariables extends Record<string, unknown>> = TVariables &
-	SugarBoxMetadata;
+type StateWithMetadata<TVariables extends Record<string, unknown>> =
+	TVariables & SugarBoxMetadata;
 
-type Snapshot<TVariables extends Record<string, unknown>> = Partial<
+type SnapshotWithMetadata<TVariables extends Record<string, unknown>> = Partial<
 	TVariables & SugarBoxMetadata
 >;
 
+type State<TVariables extends Record<string, unknown>> = TVariables;
+
+type Snapshot<TVariables extends Record<string, unknown>> = Partial<TVariables>;
+
 type Config<TState extends Record<string, unknown>> = Partial<
-	SugarBoxConfig<State<TState>>
+	SugarBoxConfig<StateWithMetadata<TState>>
 >;
 
 /** Events fired from a `SugarBoxEngine` instance */
@@ -58,13 +62,13 @@ class SugarboxEngine<
 	 *
 	 * This is also the "state history"
 	 */
-	#stateSnapshots: Array<Snapshot<TVariables>>;
+	#stateSnapshots: Array<SnapshotWithMetadata<TVariables>>;
 
 	/**  Contains the structure of stateful variables in the engine.
 	 *
 	 * Will not be modified after initialization.
 	 */
-	readonly #initialState: Readonly<State<TVariables>>;
+	readonly #initialState: Readonly<StateWithMetadata<TVariables>>;
 
 	/** The current position in the state history that the engine is playing.
 	 *
@@ -81,7 +85,7 @@ class SugarboxEngine<
 	#passages = new Map<string, TPassageType>();
 
 	/** Since recalculating the current state can be expensive */
-	#stateCache?: CacheAdapter<number, State<TVariables>>;
+	#stateCache?: CacheAdapter<number, StateWithMetadata<TVariables>>;
 
 	#eventTarget = new EventTarget();
 
@@ -141,13 +145,15 @@ class SugarboxEngine<
 	 *
 	 * May be expensive to calculate depending on the history of the story.
 	 */
-	get vars(): Readonly<TVariables> {
+	get vars(): Readonly<State<TVariables>> {
 		return this.#getStateAtIndex(this.#index);
 	}
 
 	/** Immer-style way of updating story variables
+	 *
+	 * Use this **solely** for setting values. If you must read a value, use `this.vars`
 	 */
-	setVars(producer: (variables: Snapshot<TVariables>) => void): void {
+	setVars(producer: (variables: State<TVariables>) => void): void {
 		const self = this;
 
 		const snapshot = self.#getSnapshotAtIndex(self.#index);
@@ -177,12 +183,13 @@ class SugarboxEngine<
 			},
 		});
 
+		//@ts-expect-error <Missing properties will have their values thanks to the proxy but typescript can't know that>
 		producer(proxy);
 
 		// Get the changes and emit them
 		const newState = self.#getSnapshotAtIndex(self.#index);
 
-		const oldState: Snapshot<TVariables> = {};
+		const oldState: SnapshotWithMetadata<TVariables> = {};
 
 		let newStateKey: keyof typeof newState;
 
@@ -273,7 +280,9 @@ class SugarboxEngine<
 	 *
 	 * @throws if the passage id hasn't been added to the engine
 	 */
-	navigateTo(passageId: string = this.passageId): Snapshot<TVariables> {
+	navigateTo(
+		passageId: string = this.passageId,
+	): SnapshotWithMetadata<TVariables> {
 		if (!this.#isPassageIdValid(passageId))
 			throw new Error(
 				`Cannot navigate: Passage with ID '${passageId}' not found. Add it using addPassage().`,
@@ -348,7 +357,7 @@ class SugarboxEngine<
 	 *
 	 * This will replace any existing state at the current index + 1.
 	 */
-	#addNewSnapshot(): Snapshot<TVariables> {
+	#addNewSnapshot(): SnapshotWithMetadata<TVariables> {
 		const { maxStateCount, stateMergeCount } = this.#config;
 
 		if (this.#snapshotCount >= maxStateCount) {
@@ -386,16 +395,16 @@ class SugarboxEngine<
 			Array.from(Array(upperIndex - lowerIndex + 1), (_, i) => lowerIndex + i),
 		);
 
-		const combinedSnapshot: Snapshot<TVariables> = {};
+		const combinedSnapshot: SnapshotWithMetadata<TVariables> = {};
 
-		const newSnapshotArray: Array<Snapshot<TVariables>> = [];
+		const newSnapshotArray: Array<SnapshotWithMetadata<TVariables>> = [];
 
 		for (let i = 0; i < this.#snapshotCount; i++) {
 			const currentSnapshot = this.#getSnapshotAtIndex(i);
 
 			// Merge the snapshot at this index into the combined snapshot
 			if (indexesToMerge.has(i)) {
-				let key: keyof Snapshot<TVariables>;
+				let key: keyof SnapshotWithMetadata<TVariables>;
 
 				for (key in currentSnapshot) {
 					const value = currentSnapshot[key];
@@ -424,7 +433,7 @@ class SugarboxEngine<
 	 *
 	 * @throws a `RangeError` if the given index does not exist
 	 */
-	#getSnapshotAtIndex(index: number): Snapshot<TVariables> {
+	#getSnapshotAtIndex(index: number): SnapshotWithMetadata<TVariables> {
 		const possibleSnapshot = this.#stateSnapshots[index];
 
 		if (!possibleSnapshot) throw new RangeError("Snapshot index out of bounds");
@@ -434,7 +443,7 @@ class SugarboxEngine<
 
 	#getStateAtIndex(
 		index: number = this.#lastSnapshotIndex,
-	): Readonly<State<TVariables>> {
+	): Readonly<StateWithMetadata<TVariables>> {
 		const stateLength = this.#snapshotCount;
 
 		const effectiveIndex = Math.min(Math.max(0, index), stateLength - 1);
@@ -448,7 +457,8 @@ class SugarboxEngine<
 		for (let i = 0; i <= effectiveIndex; i++) {
 			let partialUpdateKey: keyof TVariables;
 
-			const partialUpdate: Snapshot<TVariables> = this.#getSnapshotAtIndex(i);
+			const partialUpdate: SnapshotWithMetadata<TVariables> =
+				this.#getSnapshotAtIndex(i);
 
 			for (partialUpdateKey in partialUpdate) {
 				const partialUpdateData = partialUpdate[partialUpdateKey];
@@ -467,12 +477,18 @@ class SugarboxEngine<
 	}
 
 	#createCustomEvent<
-		TEventType extends keyof SugarBoxEvents<TPassageType, Snapshot<TVariables>>,
+		TEventType extends keyof SugarBoxEvents<
+			TPassageType,
+			SnapshotWithMetadata<TVariables>
+		>,
 	>(
 		name: TEventType,
-		data: SugarBoxEvents<TPassageType, Snapshot<TVariables>>[TEventType],
+		data: SugarBoxEvents<
+			TPassageType,
+			SnapshotWithMetadata<TVariables>
+		>[TEventType],
 	): CustomEvent<
-		SugarBoxEvents<TPassageType, Snapshot<TVariables>>[TEventType]
+		SugarBoxEvents<TPassageType, SnapshotWithMetadata<TVariables>>[TEventType]
 	> {
 		return new CustomEvent(name, { detail: data });
 	}
@@ -482,15 +498,23 @@ class SugarboxEngine<
 	}
 
 	#emitCustomEvent<
-		TEventType extends keyof SugarBoxEvents<TPassageType, Snapshot<TVariables>>,
+		TEventType extends keyof SugarBoxEvents<
+			TPassageType,
+			SnapshotWithMetadata<TVariables>
+		>,
 	>(
 		name: TEventType,
-		data: SugarBoxEvents<TPassageType, Snapshot<TVariables>>[TEventType],
+		data: SugarBoxEvents<
+			TPassageType,
+			SnapshotWithMetadata<TVariables>
+		>[TEventType],
 	): boolean {
 		return this.#dispatchCustomEvent(this.#createCustomEvent(name, data));
 	}
 
-	#cloneState(state: State<TVariables>): State<TVariables> {
+	#cloneState(
+		state: StateWithMetadata<TVariables>,
+	): StateWithMetadata<TVariables> {
 		// TODO: Use structuredClone and custom clone functions for complex / custom types
 		return structuredClone(state);
 	}
