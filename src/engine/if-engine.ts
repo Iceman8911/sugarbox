@@ -11,6 +11,7 @@ import type {
 	SugarBoxMetadata,
 	SugarBoxSaveKey,
 } from "../types/if-engine";
+import type { SugarBoxCompatibleClass } from "../types/userland-classes";
 
 const defaultConfig = {
 	maxStateCount: 100,
@@ -563,15 +564,58 @@ class SugarboxEngine<
 	#cloneState(
 		state: StateWithMetadata<TVariables>,
 	): StateWithMetadata<TVariables> {
-		// TODO: Use structuredClone and custom clone functions for complex / custom types
-		return structuredClone(state);
+		return cloneObject(state);
 	}
 }
 
-/** General prupose cloning helper */
+/** General prupose cloning helper
+ *
+ * **No support for recurisve objects**
+ */
 function clone<TData>(val: TData): TData {
-	// TODO: Add support for custom userland classes
-	return structuredClone(val);
+	try {
+		return structuredClone(val);
+	} catch {
+		// Could be a userland class
+		if (typeof val === "object" && val) {
+			const cloneProp: keyof SugarBoxCompatibleClass<TData> = "_clone";
+
+			if (cloneProp in val && typeof val[cloneProp] === "function") {
+				return val[cloneProp]();
+			}
+		}
+
+		console.error("Failed to clone:", val);
+
+		throw new Error("Unable to clone");
+	}
+}
+
+/** Clones all individual props in the object.
+ *
+ * **No support for recurisve objects**
+ */
+function cloneObject<TObject extends object>(obj: TObject): TObject {
+	//@ts-expect-error I'll fill this in the loop
+	const cloneToFill: TObject = {};
+
+	let key: keyof TObject;
+
+	for (key in obj) {
+		const valueToClone = obj[key];
+
+		//@ts-expect-error TS doesn't know it :(
+		cloneToFill[key] =
+			valueToClone === null
+				? null
+				: valueToClone === undefined
+					? undefined
+					: typeof valueToClone !== "object"
+						? clone(valueToClone)
+						: cloneObject(valueToClone);
+	}
+
+	return cloneToFill;
 }
 
 // For testing
