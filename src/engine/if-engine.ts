@@ -96,6 +96,7 @@ class SugarboxEngine<
 		config: Config<TVariables> = defaultConfig,
 	) {
 		/** Initialize the state with the provided initial state */
+		// TODO: don't harcode the intiial passage id
 		this.#initialState = { ...initialState, _id: "" };
 
 		this.#stateSnapshots = [{}];
