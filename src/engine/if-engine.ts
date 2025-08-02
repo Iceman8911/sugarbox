@@ -26,7 +26,7 @@ type Config<TState extends Record<string, unknown>> = Partial<
 >;
 
 /** Events fired from a `SugarBoxEngine` instance */
-type SugarBoxEvents<TPassageData, TState> = {
+type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 	":passageChange": Readonly<{
 		/** The previous passage before the transition */
 		oldPassage: TPassageData | null;
@@ -36,11 +36,11 @@ type SugarBoxEvents<TPassageData, TState> = {
 	}>;
 
 	":stateChange": Readonly<{
-		/** The previous state of variables before the transition */
-		oldState: TState;
+		/** The previous snapshot of only variables (to be changed) before the change */
+		oldState: TPartialSnapshot;
 
-		/** The new state after the transition */
-		newState: TState;
+		/** A collection of only the changed variables after the change */
+		newState: TPartialSnapshot;
 	}>;
 
 	":init": null;
@@ -285,7 +285,7 @@ class SugarboxEngine<
 
 		const oldPassage = this.passage;
 
-		const oldState = this.vars;
+		const oldSnapshot = this.#getSnapshotAtIndex(this.#index);
 
 		this.#index = val;
 
@@ -296,8 +296,8 @@ class SugarboxEngine<
 		});
 
 		this.#emitCustomEvent(":stateChange", {
-			newState: this.vars,
-			oldState,
+			newState: this.#getSnapshotAtIndex(this.#index),
+			oldState: oldSnapshot,
 		});
 	}
 
@@ -424,11 +424,13 @@ class SugarboxEngine<
 	}
 
 	#createCustomEvent<
-		TEventType extends keyof SugarBoxEvents<TPassageType, TVariables>,
+		TEventType extends keyof SugarBoxEvents<TPassageType, Snapshot<TVariables>>,
 	>(
 		name: TEventType,
-		data: SugarBoxEvents<TPassageType, TVariables>[TEventType],
-	): CustomEvent<SugarBoxEvents<TPassageType, TVariables>[TEventType]> {
+		data: SugarBoxEvents<TPassageType, Snapshot<TVariables>>[TEventType],
+	): CustomEvent<
+		SugarBoxEvents<TPassageType, Snapshot<TVariables>>[TEventType]
+	> {
 		return new CustomEvent(name, { detail: data });
 	}
 
@@ -437,10 +439,10 @@ class SugarboxEngine<
 	}
 
 	#emitCustomEvent<
-		TEventType extends keyof SugarBoxEvents<TPassageType, TVariables>,
+		TEventType extends keyof SugarBoxEvents<TPassageType, Snapshot<TVariables>>,
 	>(
 		name: TEventType,
-		data: SugarBoxEvents<TPassageType, TVariables>[TEventType],
+		data: SugarBoxEvents<TPassageType, Snapshot<TVariables>>[TEventType],
 	): boolean {
 		return this.#dispatchCustomEvent(this.#createCustomEvent(name, data));
 	}
