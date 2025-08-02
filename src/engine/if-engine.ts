@@ -151,9 +151,9 @@ class SugarboxEngine<
 	 */
 	get mutable(): Snapshot<TVariables> {
 		// Since the user is using this likely to modify it, clear this entry from the cache
-		this.#stateCache?.delete(this.#lastSnapshotIndex);
+		this.#stateCache?.delete(this.#index);
 
-		return this.#getSnapshotAtIndex(this.#lastSnapshotIndex);
+		return this.#getSnapshotAtIndex(this.#index);
 	}
 
 	/** Returns the id to the appropriate passage for the current state */
