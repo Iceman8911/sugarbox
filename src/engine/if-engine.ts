@@ -145,15 +145,58 @@ class SugarboxEngine<
 		return this.#getStateAtIndex(this.#index);
 	}
 
-	/** Use this **ONLY** for setting variables in the current snapshot.
-	 *
-	 * Attempting to read properties from this will likely return `undefined`.
+	/** Immer-style way of updating story variables
 	 */
-	get mutable(): Snapshot<TVariables> {
-		// Since the user is using this likely to modify it, clear this entry from the cache
-		this.#stateCache?.delete(this.#index);
+	setVars(producer: (variables: Snapshot<TVariables>) => void): void {
+		const self = this;
 
-		return this.#getSnapshotAtIndex(this.#index);
+		const snapshot = self.#getSnapshotAtIndex(self.#index);
+
+		const currentStateBeforeChange = self.#getStateAtIndex(this.#index);
+
+		type SnapshotProp = keyof typeof snapshot | symbol;
+
+		const proxy = new Proxy(snapshot, {
+			// To ensure that when attempting to set the values of nested properties (`variables.inventory?.gold = 30`), the missing value (`inventory`) is copied over
+			get(target, prop: SnapshotProp, receiver) {
+				if (typeof prop !== "symbol") {
+					const originalValue = target[prop];
+
+					// Since it is undefined, copy over the property from the previous state
+					if (originalValue === undefined) {
+						const previousStateValue = self.#getStateAtIndex(self.#index - 1)[
+							prop
+						];
+
+						//@ts-expect-error TS is confused
+						target[prop] = clone(previousStateValue);
+					}
+
+					return Reflect.get(target, prop, receiver);
+				}
+			},
+		});
+
+		producer(proxy);
+
+		// Get the changes and emit them
+		const newState = self.#getSnapshotAtIndex(self.#index);
+
+		const oldState: Snapshot<TVariables> = {};
+
+		let newStateKey: keyof typeof newState;
+
+		for (newStateKey in newState) {
+			oldState[newStateKey] = currentStateBeforeChange[newStateKey];
+		}
+
+		self.#emitCustomEvent(":stateChange", {
+			newState,
+			oldState,
+		});
+
+		// Clear the cache entry for this since it has been changed
+		self.#stateCache?.delete(self.#index);
 	}
 
 	/** Returns the id to the appropriate passage for the current state */
