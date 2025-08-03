@@ -11,6 +11,7 @@ import type {
 	SugarBoxConfig,
 	SugarBoxExportData,
 	SugarBoxMetadata,
+	SugarBoxPassage,
 	SugarBoxSaveData,
 	SugarBoxSaveKey,
 	SugarBoxSettingsKey,
@@ -132,7 +133,7 @@ class SugarboxEngine<
 		/** Must be unique to prevent conflicts */
 		readonly name: string,
 		initialState: TVariables,
-		essentialPassages: [string, TPassageType][],
+		essentialPassages: SugarBoxPassage<TPassageType>[],
 		achievements: TAchievementData,
 		settings: TSettingsData,
 		config: Config<TVariables> = defaultConfig,
@@ -177,7 +178,7 @@ class SugarboxEngine<
 		/** Critical passages that must be available asap.
 		 *
 		 * The first argument is the passage id */
-		passages: [string, TPassageType][];
+		passages: SugarBoxPassage<TPassageType>[];
 
 		/** Achievements that should persist across saves */
 		achievements?: TAchievementData;
@@ -364,9 +365,9 @@ class SugarboxEngine<
 	}
 
 	/** Like `addPassage`, but takes in a collection */
-	addPassages(passages: [string, TPassageType][]): void {
-		for (const { "0": passageId, "1": passageData } of passages) {
-			this.addPassage(passageId, passageData);
+	addPassages(passages: SugarBoxPassage<TPassageType>[]): void {
+		for (const { name, passage } of passages) {
+			this.addPassage(name, passage);
 		}
 	}
 
@@ -910,7 +911,7 @@ function cloneObject<TObject extends object>(obj: TObject): TObject {
 // For testing
 const engine = await SugarboxEngine.init({
 	name: "Test",
-	passages: [["Test Passage", "Balls"]],
+	passages: [{ name: "Start", passage: "This is the start passage" }],
 	variables: { name: "Dave", inventory: { gold: 123, gems: 12 } },
 });
 

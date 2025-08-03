@@ -81,6 +81,12 @@ type SugarBoxConfig<
 	>;
 };
 
+type SugarBoxPassage<TPassageType> = {
+	/** Must be unique across all passages */
+	name: string;
+	passage: TPassageType;
+};
+
 export type {
 	SugarBoxVariables,
 	SugarBoxConfig,
@@ -90,4 +96,5 @@ export type {
 	SugarBoxExportData,
 	SugarBoxAchievementsKey,
 	SugarBoxSettingsKey,
+	SugarBoxPassage,
 };
