@@ -133,14 +133,14 @@ class SugarboxEngine<
 		/** Must be unique to prevent conflicts */
 		readonly name: string,
 		initialState: TVariables,
-		essentialPassages: SugarBoxPassage<TPassageType>[],
+		startPassage: SugarBoxPassage<TPassageType>,
 		achievements: TAchievementData,
 		settings: TSettingsData,
 		config: Config<TVariables> = defaultConfig,
+		otherPassages: SugarBoxPassage<TPassageType>[],
 	) {
 		/** Initialize the state with the provided initial state */
-		// TODO: don't harcode the intiial passage id
-		this.#initialState = { ...initialState, _id: "" };
+		this.#initialState = { ...initialState, _id: startPassage.name };
 
 		this.#stateSnapshots = [{}];
 
@@ -157,7 +157,7 @@ class SugarboxEngine<
 
 		this.#config = { ...defaultConfig, ...config };
 
-		this.addPassages(essentialPassages);
+		this.addPassages([startPassage, ...otherPassages]);
 
 		if (cache) {
 			this.#stateCache = cache;
@@ -175,10 +175,12 @@ class SugarboxEngine<
 
 		variables: TVariables;
 
+		startPassage: SugarBoxPassage<TPassageType>;
+
 		/** Critical passages that must be available asap.
 		 *
 		 * The first argument is the passage id */
-		passages: SugarBoxPassage<TPassageType>[];
+		otherPassages: SugarBoxPassage<TPassageType>[];
 
 		/** Achievements that should persist across saves */
 		achievements?: TAchievementData;
@@ -191,7 +193,8 @@ class SugarboxEngine<
 		const {
 			config,
 			name,
-			passages,
+			startPassage,
+			otherPassages,
 			variables,
 			achievements = {} as TAchievementData,
 			settings = {} as TSettingsData,
@@ -202,7 +205,15 @@ class SugarboxEngine<
 			TVariables,
 			TAchievementData,
 			TSettingsData
-		>(name, variables, passages, achievements, settings, config);
+		>(
+			name,
+			variables,
+			startPassage,
+			achievements,
+			settings,
+			config,
+			otherPassages,
+		);
 
 		// If there's any stored achievements or settings, load them in place of the data provided
 		// If the user want to empty the acheivements or settings, they can explicitly do so with the `set***()` methods
@@ -911,7 +922,8 @@ function cloneObject<TObject extends object>(obj: TObject): TObject {
 // For testing
 const engine = await SugarboxEngine.init({
 	name: "Test",
-	passages: [{ name: "Start", passage: "This is the start passage" }],
+	otherPassages: [{ name: "Another Passage", passage: "Lorem Ipsum" }],
+	startPassage: { name: "Start", passage: "This is the start passage" },
 	variables: { name: "Dave", inventory: { gold: 123, gems: 12 } },
 });
 
