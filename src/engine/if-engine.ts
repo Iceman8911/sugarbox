@@ -127,7 +127,7 @@ class SugarboxEngine<
 		startPassage: SugarBoxPassage<TPassageType>,
 		achievements: TAchievementData,
 		settings: TSettingsData,
-		config: Config<TVariables> = defaultConfig,
+		config: Config<TVariables> | undefined = defaultConfig,
 		otherPassages: SugarBoxPassage<TPassageType>[],
 	) {
 		/** Initialize the state with the provided initial state */
@@ -816,17 +816,19 @@ function clone<TData>(val: TData): TData {
 }
 
 // For testing
-const engine = await SugarboxEngine.init({
-	name: "Test",
-	otherPassages: [{ name: "Another Passage", passage: "Lorem Ipsum" }],
-	startPassage: { name: "Start", passage: "This is the start passage" },
-	variables: { name: "Dave", inventory: { gold: 123, gems: 12 } },
-});
+(async () => {
+	const engine = await SugarboxEngine.init({
+		name: "Test",
+		otherPassages: [{ name: "Another Passage", passage: "Lorem Ipsum" }],
+		startPassage: { name: "Start", passage: "This is the start passage" },
+		variables: { name: "Dave", inventory: { gold: 123, gems: 12 } },
+	});
 
-engine.setVars((state) => {
-	state.name = "Sheep";
+	engine.setVars((state) => {
+		state.name = "Sheep";
 
-	state.inventory.gems = 21;
-});
+		state.inventory.gems = 21;
+	});
+})();
 
 export { SugarboxEngine };
