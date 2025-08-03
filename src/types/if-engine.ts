@@ -16,12 +16,37 @@ type SugarBoxMetadata = {
  */
 type SugarBoxSaveKey = `sugarbox-${string}-${number}`;
 
+/** Data structure used for saving the state of the engine
+ *
+ * Contains initial state, snapshots, and current story index
+ */
 type SugarBoxSaveData<
 	TStructure extends Record<string, unknown> = Record<string, unknown>,
 > = {
 	intialState: SugarBoxVariables<TStructure> & SugarBoxMetadata;
 	snapshots: Partial<SugarBoxVariables<TStructure> & SugarBoxMetadata>[];
 	storyIndex: number;
+};
+
+/** Export data structure used for saving the state of the engine to disk.
+ *
+ * Contains save data, settings, and achievements
+ */
+type SugarBoxExportData<
+	TSaveData extends Record<string, unknown> = Record<string, unknown>,
+	TSettingsData extends Record<string, unknown> = Record<string, unknown>,
+	TAchievementData extends Record<string, boolean> = Record<string, boolean>,
+> = {
+	saveData: SugarBoxSaveData<TSaveData>;
+
+	/** Story specific settings that shouldn't be tied to save data like audio volume, font size, etc */
+	settings: TSettingsData;
+
+	/** Achievements data that is not tied to save data.
+	 *
+	 * So it can persist across saves and be used to track achievements.
+	 */
+	achievements: TAchievementData;
 };
 
 type SugarBoxConfig<
@@ -55,4 +80,5 @@ export type {
 	SugarBoxMetadata,
 	SugarBoxSaveKey,
 	SugarBoxSaveData,
+	SugarBoxExportData,
 };

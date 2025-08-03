@@ -8,6 +8,7 @@
 import type { CacheAdapter } from "../types/adapters";
 import type {
 	SugarBoxConfig,
+	SugarBoxExportData,
 	SugarBoxMetadata,
 	SugarBoxSaveData,
 	SugarBoxSaveKey,
@@ -73,6 +74,8 @@ type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 class SugarboxEngine<
 	TPassageType extends string | object,
 	TVariables extends Record<string, unknown> = Record<string, unknown>,
+	TAchievementData extends Record<string, boolean> = Record<string, boolean>,
+	TSettingsData extends Record<string, unknown> = Record<string, unknown>,
 > {
 	/** Contains partial updates to the state as a result of moving forwards in the story.
 	 *
@@ -114,11 +117,19 @@ class SugarboxEngine<
 		SugarBoxCompatibleClassConstructor<unknown, unknown>
 	>();
 
+	/** Boolean flags that denote achievements meant to be persisted across saves */
+	achievements: TAchievementData;
+
+	/** Settings data that is not tied to save data, like audio volume, font size, etc */
+	settings: TSettingsData;
+
 	private constructor(
 		/** Must be unique to prevent conflicts */
 		readonly name: string,
 		initialState: TVariables,
 		essentialPassages: [string, TPassageType][],
+		achievements: TAchievementData,
+		settings: TSettingsData,
 		config: Config<TVariables> = defaultConfig,
 	) {
 		/** Initialize the state with the provided initial state */
@@ -128,6 +139,10 @@ class SugarboxEngine<
 		this.#stateSnapshots = [{}];
 
 		this.#index = 0;
+
+		this.achievements = achievements;
+
+		this.settings = settings;
 
 		const { cache, saveSlots } = config;
 
@@ -147,6 +162,8 @@ class SugarboxEngine<
 	static init<
 		TPassageType extends string | object,
 		TVariables extends Record<string, unknown> = Record<string, unknown>,
+		TAchievementData extends Record<string, boolean> = Record<string, boolean>,
+		TSettingsData extends Record<string, unknown> = Record<string, unknown>,
 	>(args: {
 		name: string;
 
@@ -157,16 +174,29 @@ class SugarboxEngine<
 		 * The first argument is the passage id */
 		passages: [string, TPassageType][];
 
+		/** Achievements that should persist across saves */
+		achievements?: TAchievementData;
+
+		/** Settings data that is not tied to save data, like audio volume, font size, etc */
+		settings?: TSettingsData;
+
 		config?: Config<TVariables>;
 	}): SugarboxEngine<TPassageType, TVariables> {
-		const { config, name, passages, variables } = args;
-
-		const engine = new SugarboxEngine<TPassageType, TVariables>(
-			name,
-			variables,
-			passages,
+		const {
 			config,
-		);
+			name,
+			passages,
+			variables,
+			achievements = {} as TAchievementData,
+			settings = {} as TSettingsData,
+		} = args;
+
+		const engine = new SugarboxEngine<
+			TPassageType,
+			TVariables,
+			TAchievementData,
+			TSettingsData
+		>(name, variables, passages, achievements, settings, config);
 
 		return engine;
 	}
@@ -369,14 +399,14 @@ class SugarboxEngine<
 	 *
 	 * @throws if the persistence adapter is not available
 	 */
-	async save(saveSlot: number): Promise<void> {
+	async saveToSaveSlot(saveSlot: number): Promise<void> {
 		const { persistence } = this.#config;
 
 		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
 
 		const saveKey = this.#getSaveKeyFromSaveSlotNumber(saveSlot);
 
-		const saveData = {
+		const saveData: SugarBoxSaveData<TVariables> = {
 			intialState: this.#initialState,
 			snapshots: this.#stateSnapshots,
 			storyIndex: this.#index,
@@ -391,7 +421,7 @@ class SugarboxEngine<
 	/**
 	 * @throws if the save slot is invalid or if the persistence adapter is not available
 	 */
-	async load(saveSlot: number): Promise<void> {
+	async loadFromSaveSlot(saveSlot: number): Promise<void> {
 		const { persistence } = this.#config;
 
 		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
@@ -413,9 +443,44 @@ class SugarboxEngine<
 		this.#index = storyIndex;
 	}
 
-	// async saveToDisk() {}
+	/** For saves the need to exported out of the browser */
+	saveToExport(): string {
+		const exportData: SugarBoxExportData<
+			TVariables,
+			TSettingsData,
+			TAchievementData
+		> = {
+			saveData: {
+				intialState: this.#initialState,
+				snapshots: this.#stateSnapshots,
+				storyIndex: this.#index,
+			},
+			settings: this.settings,
+			achievements: this.achievements,
+		};
 
-	// async loadFromDisk(data: unknown) {}
+		return JSON.stringify(exportData, this.#serializationReplacer);
+	}
+
+	/** Can be used when directly loading a save from an exported save on disk  */
+	loadFromExport(data: string): void {
+		const {
+			achievements,
+			saveData: { intialState, snapshots, storyIndex },
+			settings,
+		}: SugarBoxExportData<
+			TVariables,
+			TSettingsData,
+			TAchievementData
+		> = JSON.parse(data, this.#reconstructionReviver);
+
+		// Replace the current state
+		this.#initialState = intialState;
+		this.#stateSnapshots = snapshots;
+		this.#index = storyIndex;
+		this.achievements = achievements;
+		this.settings = settings;
+	}
 
 	static #assertPersistenceIsAvailable(
 		persistence: SugarBoxConfig["persistence"],
@@ -676,6 +741,7 @@ class SugarboxEngine<
 			typeof value[serializedProp] === "string"
 		) {
 			const Cls = this.#classRegistry.get(value[classIdProp]);
+
 			if (Cls && typeof Cls.__fromJSON === "function") {
 				// If we found the registered class, reconstruct it
 				return Cls.__fromJSON(value[serializedProp]);
