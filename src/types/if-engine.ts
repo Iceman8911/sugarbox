@@ -16,6 +16,14 @@ type SugarBoxMetadata = {
  */
 type SugarBoxSaveKey = `sugarbox-${string}-${number}`;
 
+type SugarBoxSaveData<
+	TStructure extends Record<string, unknown> = Record<string, unknown>,
+> = {
+	intialState: SugarBoxVariables<TStructure> & SugarBoxMetadata;
+	snapshots: Partial<SugarBoxVariables<TStructure> & SugarBoxMetadata>[];
+	storyIndex: number;
+};
+
 type SugarBoxConfig<
 	TStructure extends Record<string, unknown> = Record<string, unknown>,
 > = {
@@ -38,15 +46,7 @@ type SugarBoxConfig<
 	>;
 
 	/** Optional persistence adapter for saving support */
-	persistence?: PersistenceAdapter<
-		SugarBoxSaveKey,
-		/** Make the inital state and snapshots a serialized string */
-		{
-			intialState: SugarBoxVariables<TStructure> & SugarBoxMetadata;
-			snapshots: Partial<SugarBoxVariables<TStructure> & SugarBoxMetadata>[];
-			storyIndex: number;
-		}
-	>;
+	persistence?: PersistenceAdapter<SugarBoxSaveKey, string>;
 };
 
 export type {
@@ -54,4 +54,5 @@ export type {
 	SugarBoxConfig,
 	SugarBoxMetadata,
 	SugarBoxSaveKey,
+	SugarBoxSaveData,
 };

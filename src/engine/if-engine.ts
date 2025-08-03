@@ -11,7 +11,11 @@ import type {
 	SugarBoxMetadata,
 	SugarBoxSaveKey,
 } from "../types/if-engine";
-import type { SugarBoxCompatibleClass } from "../types/userland-classes";
+import type {
+	SugarBoxCompatibleClassConstructor,
+	SugarBoxCompatibleClassInstance,
+	SugarBoxSerializedClassData,
+} from "../types/userland-classes";
 
 const defaultConfig = {
 	maxStateCount: 100,
@@ -99,6 +103,15 @@ class SugarboxEngine<
 	#stateCache?: CacheAdapter<number, StateWithMetadata<TVariables>>;
 
 	#eventTarget = new EventTarget();
+
+	/** Stores all userland custom classes for use in serialization and deserialization.
+	 *
+	 * It's indexed with the static prop `classId` of the given class
+	 */
+	#classRegistry = new Map<
+		string,
+		SugarBoxCompatibleClassConstructor<unknown, unknown>
+	>();
 
 	private constructor(
 		/** Must be unique to prevent conflicts */
@@ -342,6 +355,15 @@ class SugarboxEngine<
 		this.#eventTarget.removeEventListener(type, listener, options);
 	}
 
+	/** Any custom classes stored in the story's state must be registered with this */
+	registerClasses(
+		...customClasses: SugarBoxCompatibleClassConstructor<unknown, unknown>[]
+	): void {
+		customClasses.forEach((customClass) =>
+			this.#classRegistry.set(customClass.__classId, customClass),
+		);
+	}
+
 	/** Using the provided persistence adapter, this saves all vital data for the combined state, metadata, and current index  */
 	async save(saveSlot: number): Promise<void> {
 		const { saveSlots: MAX_SAVE_SLOTS, persistence } = this.#config;
@@ -358,11 +380,16 @@ class SugarboxEngine<
 
 		const saveKey = this.#getSaveKeyFromSaveSlotNumber(saveSlot);
 
-		await persistence.set(saveKey, {
+		const saveData = {
 			intialState: this.#initialState,
 			snapshots: this.#stateSnapshots,
 			storyIndex: this.index,
-		});
+		};
+
+		await persistence.set(
+			saveKey,
+			JSON.stringify(saveData, this.#serializationReplacer),
+		);
 	}
 
 	// async load(saveSlot: number) {}
@@ -561,6 +588,69 @@ class SugarboxEngine<
 		return this.#dispatchCustomEvent(this.#createCustomEvent(name, data));
 	}
 
+	#serializationReplacer(_: string, value: unknown): unknown {
+		const classIdProp: keyof SugarBoxCompatibleClassConstructor<
+			unknown,
+			unknown
+		> = "__classId";
+
+		const toJSONProp: keyof SugarBoxCompatibleClassInstance<unknown> =
+			"__toJSON";
+
+		// Account for userland custom classes
+		if (
+			value &&
+			typeof value === "object" &&
+			!Array.isArray(value) &&
+			classIdProp in value.constructor &&
+			typeof value.constructor[classIdProp] === "string" &&
+			toJSONProp in value &&
+			typeof value[toJSONProp] === "function"
+		) {
+			const serializedClassData: SugarBoxSerializedClassData = {
+				__classId: value.constructor[classIdProp],
+
+				__serialized: value[toJSONProp](),
+			};
+
+			return serializedClassData;
+		}
+		// Todo: account for native classes like Maps, Sets, Dates, etc
+
+		// Return other values as is
+		return value;
+	}
+
+	/**  Custom reviver function for JSON.parse */
+	#reconstructionReviver(key: string, value: unknown): unknown {
+		const classIdProp: keyof SugarBoxSerializedClassData = "__classId";
+
+		const serializedProp: keyof SugarBoxSerializedClassData = "__serialized";
+
+		// Check for our custom serialization format
+		if (
+			value &&
+			typeof value === "object" &&
+			classIdProp in value &&
+			typeof value[classIdProp] === "string" &&
+			serializedProp in value &&
+			typeof value[serializedProp] === "string"
+		) {
+			const Cls = this.#classRegistry.get(value[classIdProp]);
+			if (Cls && typeof Cls.__fromJSON === "function") {
+				// If we found the registered class, reconstruct it
+				return Cls.__fromJSON(value[serializedProp]);
+			} else {
+				// If the class wasn't registered, we can't reconstruct it.
+				// Throw an error or return the raw data with a warning.
+				throw new Error(
+					`Cannot reconstruct unregistered class: ${value[classIdProp]}`,
+				);
+			}
+		}
+		return value; // Return other values as-is
+	}
+
 	#cloneState(
 		state: StateWithMetadata<TVariables>,
 	): StateWithMetadata<TVariables> {
@@ -578,7 +668,7 @@ function clone<TData>(val: TData): TData {
 	} catch {
 		// Could be a userland class
 		if (typeof val === "object" && val) {
-			const cloneProp: keyof SugarBoxCompatibleClass<TData> = "_clone";
+			const cloneProp: keyof SugarBoxCompatibleClassInstance<TData> = "__clone";
 
 			if (cloneProp in val && typeof val[cloneProp] === "function") {
 				return val[cloneProp]();
