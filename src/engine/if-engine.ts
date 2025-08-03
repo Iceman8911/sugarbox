@@ -9,6 +9,7 @@ import type { CacheAdapter } from "../types/adapters";
 import type {
 	SugarBoxConfig,
 	SugarBoxMetadata,
+	SugarBoxSaveData,
 	SugarBoxSaveKey,
 } from "../types/if-engine";
 import type {
@@ -83,7 +84,7 @@ class SugarboxEngine<
 	 *
 	 * Will not be modified after initialization.
 	 */
-	readonly #initialState: Readonly<StateWithMetadata<TVariables>>;
+	#initialState: Readonly<StateWithMetadata<TVariables>>;
 
 	/** The current position in the state history that the engine is playing.
 	 *
@@ -364,26 +365,21 @@ class SugarboxEngine<
 		);
 	}
 
-	/** Using the provided persistence adapter, this saves all vital data for the combined state, metadata, and current index  */
+	/** Using the provided persistence adapter, this saves all vital data for the combined state, metadata, and current index
+	 *
+	 * @throws if the persistence adapter is not available
+	 */
 	async save(saveSlot: number): Promise<void> {
-		const { saveSlots: MAX_SAVE_SLOTS, persistence } = this.#config;
+		const { persistence } = this.#config;
 
-		const ERROR_TEXT = "Unable to save.";
-
-		if (saveSlot < MINIMUM_SAVE_SLOT_INDEX || saveSlot >= MAX_SAVE_SLOTS) {
-			throw new Error(`${ERROR_TEXT} Save slot ${saveSlot} is invalid.`);
-		}
-
-		if (!persistence) {
-			throw new Error(`${ERROR_TEXT} No persistence adapter`);
-		}
+		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
 
 		const saveKey = this.#getSaveKeyFromSaveSlotNumber(saveSlot);
 
 		const saveData = {
 			intialState: this.#initialState,
 			snapshots: this.#stateSnapshots,
-			storyIndex: this.index,
+			storyIndex: this.#index,
 		};
 
 		await persistence.set(
@@ -392,13 +388,56 @@ class SugarboxEngine<
 		);
 	}
 
-	// async load(saveSlot: number) {}
+	/**
+	 * @throws if the save slot is invalid or if the persistence adapter is not available
+	 */
+	async load(saveSlot: number): Promise<void> {
+		const { persistence } = this.#config;
+
+		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
+
+		const saveSlotKey = this.#getSaveKeyFromSaveSlotNumber(saveSlot);
+
+		const serializedSaveData = await persistence.get(saveSlotKey);
+
+		if (!serializedSaveData) {
+			throw new Error(`No save data found for slot ${saveSlot}`);
+		}
+
+		const { intialState, snapshots, storyIndex }: SugarBoxSaveData<TVariables> =
+			JSON.parse(serializedSaveData, this.#reconstructionReviver);
+
+		// Replace the current state
+		this.#initialState = intialState;
+		this.#stateSnapshots = snapshots;
+		this.#index = storyIndex;
+	}
 
 	// async saveToDisk() {}
 
 	// async loadFromDisk(data: unknown) {}
 
+	static #assertPersistenceIsAvailable(
+		persistence: SugarBoxConfig["persistence"],
+	): asserts persistence is NonNullable<SugarBoxConfig["persistence"]> {
+		if (!persistence) {
+			throw new Error("Unable to save. No persistence adapter");
+		}
+	}
+
+	#assertSaveSlotIsValid(saveSlot: number): void {
+		const { saveSlots: MAX_SAVE_SLOTS } = this.#config;
+
+		const ERROR_TEXT = "Unable to save.";
+
+		if (saveSlot < MINIMUM_SAVE_SLOT_INDEX || saveSlot >= MAX_SAVE_SLOTS) {
+			throw new Error(`${ERROR_TEXT} Save slot ${saveSlot} is invalid.`);
+		}
+	}
+
 	#getSaveKeyFromSaveSlotNumber(saveSlot: number): SugarBoxSaveKey {
+		this.#assertSaveSlotIsValid(saveSlot);
+
 		return `sugarbox-${this.name}-${saveSlot}`;
 	}
 
