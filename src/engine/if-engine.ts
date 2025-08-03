@@ -815,20 +815,4 @@ function clone<TData>(val: TData): TData {
 	}
 }
 
-// For testing
-(async () => {
-	const engine = await SugarboxEngine.init({
-		name: "Test",
-		otherPassages: [{ name: "Another Passage", passage: "Lorem Ipsum" }],
-		startPassage: { name: "Start", passage: "This is the start passage" },
-		variables: { name: "Dave", inventory: { gold: 123, gems: 12 } },
-	});
-
-	engine.setVars((state) => {
-		state.name = "Sheep";
-
-		state.inventory.gems = 21;
-	});
-})();
-
 export { SugarboxEngine };
