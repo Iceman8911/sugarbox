@@ -140,7 +140,7 @@ class SugarboxEngine<
 		otherPassages: SugarBoxPassage<TPassageType>[],
 	) {
 		/** Initialize the state with the provided initial state */
-		this.#initialState = { ...initialState, _id: startPassage.name };
+		this.#initialState = { ...initialState, __id: startPassage.name };
 
 		this.#stateSnapshots = [{}];
 
@@ -292,7 +292,7 @@ class SugarboxEngine<
 
 	/** Returns the id to the appropriate passage for the current state */
 	get passageId(): string {
-		return this.#getStateAtIndex(this.#index)._id;
+		return this.#getStateAtIndex(this.#index).__id;
 	}
 
 	/** Returns the passage data for the current state.
@@ -399,7 +399,7 @@ class SugarboxEngine<
 		const newSnapshot = this.#addNewSnapshot();
 
 		//@ts-expect-error - At the moment, there's no way to enforce that TVariables should not have a `_id` property
-		newSnapshot._id = passageId;
+		newSnapshot.__id = passageId;
 
 		this.#setIndex(this.#index + 1);
 

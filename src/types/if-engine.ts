@@ -7,7 +7,7 @@ type SugarBoxVariables<
 /** Special information attached to every state snapshot */
 type SugarBoxMetadata = {
 	/** Passage ID for the state snapshot */
-	_id: string;
+	__id: string;
 };
 
 /** Keys used for indexing save data
