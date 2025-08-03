@@ -16,6 +16,10 @@ type SugarBoxMetadata = {
  */
 type SugarBoxSaveKey = `sugarbox-${string}-${number}`;
 
+type SugarBoxAchievementsKey = `sugarbox-${string}-achievements`;
+
+type SugarBoxSettingsKey = `sugarbox-${string}-settings`;
+
 /** Data structure used for saving the state of the engine
  *
  * Contains initial state, snapshots, and current story index
@@ -71,7 +75,10 @@ type SugarBoxConfig<
 	>;
 
 	/** Optional persistence adapter for saving support */
-	persistence?: PersistenceAdapter<SugarBoxSaveKey, string>;
+	persistence?: PersistenceAdapter<
+		SugarBoxSaveKey | SugarBoxAchievementsKey | SugarBoxSettingsKey,
+		string
+	>;
 };
 
 export type {
@@ -81,4 +88,6 @@ export type {
 	SugarBoxSaveKey,
 	SugarBoxSaveData,
 	SugarBoxExportData,
+	SugarBoxAchievementsKey,
+	SugarBoxSettingsKey,
 };

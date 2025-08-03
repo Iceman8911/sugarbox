@@ -7,11 +7,13 @@
 
 import type { CacheAdapter } from "../types/adapters";
 import type {
+	SugarBoxAchievementsKey,
 	SugarBoxConfig,
 	SugarBoxExportData,
 	SugarBoxMetadata,
 	SugarBoxSaveData,
 	SugarBoxSaveKey,
+	SugarBoxSettingsKey,
 } from "../types/if-engine";
 import type {
 	SugarBoxCompatibleClassConstructor,
@@ -118,10 +120,13 @@ class SugarboxEngine<
 	>();
 
 	/** Boolean flags that denote achievements meant to be persisted across saves */
-	achievements: TAchievementData;
+	#achievements: TAchievementData;
 
-	/** Settings data that is not tied to save data, like audio volume, font size, etc */
-	settings: TSettingsData;
+	/** Settings data that is not tied to save data, like audio volume, font size, etc
+	 *
+	 * Must be serializable and deserializable by JSON.stringify / parse
+	 */
+	#settings: TSettingsData;
 
 	private constructor(
 		/** Must be unique to prevent conflicts */
@@ -140,9 +145,9 @@ class SugarboxEngine<
 
 		this.#index = 0;
 
-		this.achievements = achievements;
+		this.#achievements = achievements;
 
-		this.settings = settings;
+		this.#settings = settings;
 
 		const { cache, saveSlots } = config;
 
@@ -159,7 +164,7 @@ class SugarboxEngine<
 	}
 
 	/** Use this to initialize the engine */
-	static init<
+	static async init<
 		TPassageType extends string | object,
 		TVariables extends Record<string, unknown> = Record<string, unknown>,
 		TAchievementData extends Record<string, boolean> = Record<string, boolean>,
@@ -181,7 +186,7 @@ class SugarboxEngine<
 		settings?: TSettingsData;
 
 		config?: Config<TVariables>;
-	}): SugarboxEngine<TPassageType, TVariables> {
+	}): Promise<SugarboxEngine<TPassageType, TVariables>> {
 		const {
 			config,
 			name,
@@ -197,6 +202,13 @@ class SugarboxEngine<
 			TAchievementData,
 			TSettingsData
 		>(name, variables, passages, achievements, settings, config);
+
+		// If there's any stored achievements or settings, load them in place of the data provided
+		// If the user want to empty the acheivements or settings, they can explicitly do so with the `set***()` methods
+		await Promise.allSettled([
+			engine.#loadAchievements(),
+			engine.#loadSettings(),
+		]);
 
 		return engine;
 	}
@@ -287,6 +299,30 @@ class SugarboxEngine<
 	 */
 	get index(): number {
 		return this.#index;
+	}
+
+	get achievements(): Readonly<TAchievementData> {
+		return this.#achievements;
+	}
+
+	/** Immer-style producer for setting achievements */
+	async setAchievements(
+		producer: (state: TAchievementData) => void,
+	): Promise<void> {
+		producer(this.#achievements);
+
+		await this.#saveAchievements();
+	}
+
+	get settings(): Readonly<TSettingsData> {
+		return this.#settings;
+	}
+
+	/** Immer-style producer for setting settings */
+	async setSettings(producer: (state: TSettingsData) => void): Promise<void> {
+		producer(this.#settings);
+
+		await this.#saveSettings();
 	}
 
 	/** Moves at least one step forward in the state history.
@@ -455,8 +491,8 @@ class SugarboxEngine<
 				snapshots: this.#stateSnapshots,
 				storyIndex: this.#index,
 			},
-			settings: this.settings,
-			achievements: this.achievements,
+			settings: this.#settings,
+			achievements: this.#achievements,
 		};
 
 		return JSON.stringify(exportData, this.#serializationReplacer);
@@ -478,8 +514,8 @@ class SugarboxEngine<
 		this.#initialState = intialState;
 		this.#stateSnapshots = snapshots;
 		this.#index = storyIndex;
-		this.achievements = achievements;
-		this.settings = settings;
+		this.#achievements = achievements;
+		this.#settings = settings;
 	}
 
 	static #assertPersistenceIsAvailable(
@@ -504,6 +540,14 @@ class SugarboxEngine<
 		this.#assertSaveSlotIsValid(saveSlot);
 
 		return `sugarbox-${this.name}-${saveSlot}`;
+	}
+
+	get #achivementsStorageKey(): SugarBoxAchievementsKey {
+		return `sugarbox-${this.name}-achievements`;
+	}
+
+	get #settingsStorageKey(): SugarBoxSettingsKey {
+		return `sugarbox-${this.name}-settings`;
 	}
 
 	#isPassageIdValid(passageId: string): boolean {
@@ -756,6 +800,56 @@ class SugarboxEngine<
 		return value; // Return other values as-is
 	}
 
+	async #saveAchievements(): Promise<void> {
+		const persistenceAdapter = this.#config.persistence;
+
+		SugarboxEngine.#assertPersistenceIsAvailable(persistenceAdapter);
+
+		await persistenceAdapter.set(
+			this.#achivementsStorageKey,
+			JSON.stringify(this.#achievements),
+		);
+	}
+
+	async #loadAchievements(): Promise<void> {
+		const persistenceAdapter = this.#config.persistence;
+
+		SugarboxEngine.#assertPersistenceIsAvailable(persistenceAdapter);
+
+		const serializedAchievements = await persistenceAdapter.get(
+			this.#achivementsStorageKey,
+		);
+
+		if (serializedAchievements) {
+			this.#achievements = JSON.parse(serializedAchievements);
+		}
+	}
+
+	async #saveSettings(): Promise<void> {
+		const persistenceAdapter = this.#config.persistence;
+
+		SugarboxEngine.#assertPersistenceIsAvailable(persistenceAdapter);
+
+		await persistenceAdapter.set(
+			this.#settingsStorageKey,
+			JSON.stringify(this.#settings),
+		);
+	}
+
+	async #loadSettings(): Promise<void> {
+		const persistenceAdapter = this.#config.persistence;
+
+		SugarboxEngine.#assertPersistenceIsAvailable(persistenceAdapter);
+
+		const serializedSettings = await persistenceAdapter.get(
+			this.#settingsStorageKey,
+		);
+
+		if (serializedSettings) {
+			this.#settings = JSON.parse(serializedSettings);
+		}
+	}
+
 	#cloneState(
 		state: StateWithMetadata<TVariables>,
 	): StateWithMetadata<TVariables> {
@@ -814,7 +908,7 @@ function cloneObject<TObject extends object>(obj: TObject): TObject {
 }
 
 // For testing
-const engine = SugarboxEngine.init({
+const engine = await SugarboxEngine.init({
 	name: "Test",
 	passages: [["Test Passage", "Balls"]],
 	variables: { name: "Dave", inventory: { gold: 123, gems: 12 } },
