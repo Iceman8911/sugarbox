@@ -5,6 +5,7 @@
 // - A partial update only contains changes to the state, not the entire state.
 // - The current state snapshot is the last state in the list, which is mutable.
 
+import { parse, registerCustom, stringify } from "superjson";
 import type { CacheAdapter } from "../types/adapters";
 import type {
 	SugarBoxAchievementsKey,
@@ -19,7 +20,6 @@ import type {
 import type {
 	SugarBoxCompatibleClassConstructor,
 	SugarBoxCompatibleClassInstance,
-	SugarBoxSerializedClassData,
 } from "../types/userland-classes";
 
 const defaultConfig = {
@@ -110,15 +110,6 @@ class SugarboxEngine<
 	#stateCache?: CacheAdapter<number, StateWithMetadata<TVariables>>;
 
 	#eventTarget = new EventTarget();
-
-	/** Stores all userland custom classes for use in serialization and deserialization.
-	 *
-	 * It's indexed with the static prop `classId` of the given class
-	 */
-	#classRegistry = new Map<
-		string,
-		SugarBoxCompatibleClassConstructor<unknown, unknown>
-	>();
 
 	/** Boolean flags that denote achievements meant to be persisted across saves */
 	#achievements: TAchievementData;
@@ -438,9 +429,23 @@ class SugarboxEngine<
 	registerClasses(
 		...customClasses: SugarBoxCompatibleClassConstructor<unknown, unknown>[]
 	): void {
-		customClasses.forEach((customClass) =>
-			this.#classRegistry.set(customClass.__classId, customClass),
-		);
+		customClasses.forEach((customClass) => {
+			registerCustom<SugarBoxCompatibleClassInstance<unknown>, string>(
+				{
+					deserialize: (serializedString) =>
+						customClass.__fromJSON(serializedString),
+
+					isApplicable: (
+						possibleClass,
+					): possibleClass is SugarBoxCompatibleClassInstance<unknown> =>
+						possibleClass instanceof customClass,
+
+					serialize: (instance) => instance.__toJSON(),
+				},
+
+				customClass.__classId,
+			);
+		});
 	}
 
 	/** Using the provided persistence adapter, this saves all vital data for the combined state, metadata, and current index
@@ -460,10 +465,7 @@ class SugarboxEngine<
 			storyIndex: this.#index,
 		};
 
-		await persistence.set(
-			saveKey,
-			JSON.stringify(saveData, this.#serializationReplacer),
-		);
+		await persistence.set(saveKey, stringify(saveData));
 	}
 
 	/**
@@ -483,7 +485,7 @@ class SugarboxEngine<
 		}
 
 		const { intialState, snapshots, storyIndex }: SugarBoxSaveData<TVariables> =
-			JSON.parse(serializedSaveData, this.#reconstructionReviver);
+			parse(serializedSaveData);
 
 		// Replace the current state
 		this.#initialState = intialState;
@@ -507,7 +509,7 @@ class SugarboxEngine<
 			achievements: this.#achievements,
 		};
 
-		return JSON.stringify(exportData, this.#serializationReplacer);
+		return stringify(exportData);
 	}
 
 	/** Can be used when directly loading a save from an exported save on disk  */
@@ -516,11 +518,9 @@ class SugarboxEngine<
 			achievements,
 			saveData: { intialState, snapshots, storyIndex },
 			settings,
-		}: SugarBoxExportData<
-			TVariables,
-			TSettingsData,
-			TAchievementData
-		> = JSON.parse(data, this.#reconstructionReviver);
+		}: SugarBoxExportData<TVariables, TSettingsData, TAchievementData> = parse(
+			data,
+		);
 
 		// Replace the current state
 		this.#initialState = intialState;
@@ -748,70 +748,6 @@ class SugarboxEngine<
 		return this.#dispatchCustomEvent(this.#createCustomEvent(name, data));
 	}
 
-	#serializationReplacer(_: string, value: unknown): unknown {
-		const classIdProp: keyof SugarBoxCompatibleClassConstructor<
-			unknown,
-			unknown
-		> = "__classId";
-
-		const toJSONProp: keyof SugarBoxCompatibleClassInstance<unknown> =
-			"__toJSON";
-
-		// Account for userland custom classes
-		if (
-			value &&
-			typeof value === "object" &&
-			!Array.isArray(value) &&
-			classIdProp in value.constructor &&
-			typeof value.constructor[classIdProp] === "string" &&
-			toJSONProp in value &&
-			typeof value[toJSONProp] === "function"
-		) {
-			const serializedClassData: SugarBoxSerializedClassData = {
-				__classId: value.constructor[classIdProp],
-
-				__serialized: value[toJSONProp](),
-			};
-
-			return serializedClassData;
-		}
-		// Todo: account for native classes like Maps, Sets, Dates, etc
-
-		// Return other values as is
-		return value;
-	}
-
-	/**  Custom reviver function for JSON.parse */
-	#reconstructionReviver(key: string, value: unknown): unknown {
-		const classIdProp: keyof SugarBoxSerializedClassData = "__classId";
-
-		const serializedProp: keyof SugarBoxSerializedClassData = "__serialized";
-
-		// Check for our custom serialization format
-		if (
-			value &&
-			typeof value === "object" &&
-			classIdProp in value &&
-			typeof value[classIdProp] === "string" &&
-			serializedProp in value &&
-			typeof value[serializedProp] === "string"
-		) {
-			const Cls = this.#classRegistry.get(value[classIdProp]);
-
-			if (Cls && typeof Cls.__fromJSON === "function") {
-				// If we found the registered class, reconstruct it
-				return Cls.__fromJSON(value[serializedProp]);
-			} else {
-				// If the class wasn't registered, we can't reconstruct it.
-				// Throw an error or return the raw data with a warning.
-				throw new Error(
-					`Cannot reconstruct unregistered class: ${value[classIdProp]}`,
-				);
-			}
-		}
-		return value; // Return other values as-is
-	}
-
 	async #saveAchievements(): Promise<void> {
 		const persistenceAdapter = this.#config.persistence;
 
@@ -865,58 +801,18 @@ class SugarboxEngine<
 	#cloneState(
 		state: StateWithMetadata<TVariables>,
 	): StateWithMetadata<TVariables> {
-		return cloneObject(state);
+		return clone(state);
 	}
 }
 
 /** General prupose cloning helper
- *
- * **No support for recurisve objects**
  */
 function clone<TData>(val: TData): TData {
 	try {
 		return structuredClone(val);
 	} catch {
-		// Could be a userland class
-		if (typeof val === "object" && val) {
-			const cloneProp: keyof SugarBoxCompatibleClassInstance<TData> = "__clone";
-
-			if (cloneProp in val && typeof val[cloneProp] === "function") {
-				return val[cloneProp]();
-			}
-		}
-
-		console.error("Failed to clone:", val);
-
-		throw new Error("Unable to clone");
+		return parse(stringify(val));
 	}
-}
-
-/** Clones all individual props in the object.
- *
- * **No support for recurisve objects**
- */
-function cloneObject<TObject extends object>(obj: TObject): TObject {
-	//@ts-expect-error I'll fill this in the loop
-	const cloneToFill: TObject = {};
-
-	let key: keyof TObject;
-
-	for (key in obj) {
-		const valueToClone = obj[key];
-
-		//@ts-expect-error TS doesn't know it :(
-		cloneToFill[key] =
-			valueToClone === null
-				? null
-				: valueToClone === undefined
-					? undefined
-					: typeof valueToClone !== "object"
-						? clone(valueToClone)
-						: cloneObject(valueToClone);
-	}
-
-	return cloneToFill;
 }
 
 // For testing

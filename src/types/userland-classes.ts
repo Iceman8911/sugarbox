@@ -14,22 +14,20 @@ type SugarBoxCompatibleClassInstance<TClassInstance> = {
 };
 
 type SugarBoxCompatibleClassConstructor<TClassInstance, TSerializedData> = {
-	new (...args: unknown[]): TClassInstance;
+	new (...args: unknown[]): SugarBoxCompatibleClassInstance<TClassInstance>;
 
 	/** Immutable id that must be stable (i.e never ever change if you wish to keep current saves compatible) since it is used to index registered classes in the engine */
 	readonly __classId: string;
 
 	/** Static method for reviving the class */
-	__fromJSON(serializedData: TSerializedData): TClassInstance;
-};
+	__fromJSON(
+		serializedData: TSerializedData,
+	): SugarBoxCompatibleClassInstance<TClassInstance>;
 
-type SugarBoxSerializedClassData = {
-	__classId: string;
-	__serialized: string;
+	prototype: SugarBoxCompatibleClassInstance<TClassInstance>;
 };
 
 export type {
 	SugarBoxCompatibleClassInstance,
 	SugarBoxCompatibleClassConstructor,
-	SugarBoxSerializedClassData,
 };
