@@ -392,8 +392,10 @@ class SugarboxEngine<
 
 		const newSnapshot = this.#addNewSnapshot();
 
-		//@ts-expect-error - At the moment, there's no way to enforce that TVariables should not have a `_id` property
-		newSnapshot.__id = passageId;
+		if (this.#varsWithMetadata.__id !== passageId) {
+			//@ts-expect-error - At the moment, there's no way to enforce that TVariables should not have a `_id` property
+			newSnapshot.__id = passageId;
+		}
 
 		this.#setIndex(this.#index + 1);
 
