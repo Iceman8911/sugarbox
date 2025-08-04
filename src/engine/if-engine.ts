@@ -224,7 +224,7 @@ class SugarboxEngine<
 	 * May be expensive to calculate depending on the history of the story.
 	 */
 	get vars(): Readonly<State<TVariables>> {
-		return this.#getStateAtIndex(this.#index);
+		return this.#varsWithMetadata;
 	}
 
 	/** Immer-style way of updating story variables
@@ -286,7 +286,7 @@ class SugarboxEngine<
 
 	/** Returns the id to the appropriate passage for the current state */
 	get passageId(): string {
-		return this.#getStateAtIndex(this.#index).__id;
+		return this.#varsWithMetadata.__id;
 	}
 
 	/** Returns the passage data for the current state.
@@ -627,6 +627,11 @@ class SugarboxEngine<
 
 	get #lastSnapshotIndex(): number {
 		return this.#snapshotCount - 1;
+	}
+
+	/** Since `this.vars` is purposely limited typescript-wise */
+	get #varsWithMetadata(): Readonly<StateWithMetadata<TVariables>> {
+		return this.#getStateAtIndex(this.#index);
 	}
 
 	/** Inclusively combines the snapshots within the given range of indexes to free up space.
