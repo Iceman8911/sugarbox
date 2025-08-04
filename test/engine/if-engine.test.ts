@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { SugarboxEngine } from "../../src";
 
 async function initEngine() {
@@ -17,20 +17,22 @@ async function initEngine() {
 	});
 }
 
-test("should initialize without issue", async () => {
-	const engine = await initEngine();
+describe("SugarboxEngine", () => {
+	test("should initialize without issue", async () => {
+		const engine = await initEngine();
 
-	engine.setVars((state) => {
-		state.name = "Sheep";
+		engine.setVars((state) => {
+			state.name = "Sheep";
 
-		state.inventory.gems = 21;
+			state.inventory.gems = 21;
+		});
+
+		engine.navigateTo("Another Passage");
+
+		expect(engine.passageId).toBe("Another Passage");
+
+		engine.navigateTo("Start");
+
+		expect(engine.index).toBe(2);
 	});
-
-	engine.navigateTo("Another Passage");
-
-	expect(engine.passageId).toBe("Another Passage");
-
-	engine.navigateTo("Start");
-
-	expect(engine.index).toBe(2);
 });

@@ -16,6 +16,8 @@ type SugarBoxMetadata = {
  */
 type SugarBoxSaveKey = `sugarbox-${string}-${number}`;
 
+type SugarBoxAutoSaveKey = `sugarbox-${string}-autosave`;
+
 type SugarBoxAchievementsKey = `sugarbox-${string}-achievements`;
 
 type SugarBoxSettingsKey = `sugarbox-${string}-settings`;
@@ -65,8 +67,18 @@ type SugarBoxConfig<
 	/** Maximum amount of saves at any given time.
 	 *
 	 * Must not be less than 1
+	 *
+	 * @default 20
 	 */
 	saveSlots: number;
+
+	/** If set to `passage`, the story variables are saved on every passage navigation to a special save slot
+	 *
+	 * If set to `state`, the story variables are saved on every state change (i.e when a variable is changed) to a special save slot
+	 *
+	 * @default false
+	 */
+	autoSave: "passage" | "state" | false;
 
 	/** Optional cache adapter to use to speed up state fetching */
 	cache?: CacheAdapter<
@@ -76,7 +88,10 @@ type SugarBoxConfig<
 
 	/** Optional persistence adapter for saving support */
 	persistence?: PersistenceAdapter<
-		SugarBoxSaveKey | SugarBoxAchievementsKey | SugarBoxSettingsKey,
+		| SugarBoxSaveKey
+		| SugarBoxAchievementsKey
+		| SugarBoxSettingsKey
+		| SugarBoxAutoSaveKey,
 		string
 	>;
 };
@@ -97,4 +112,5 @@ export type {
 	SugarBoxAchievementsKey,
 	SugarBoxSettingsKey,
 	SugarBoxPassage,
+	SugarBoxAutoSaveKey,
 };

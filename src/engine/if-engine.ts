@@ -9,6 +9,7 @@ import { parse, registerCustom, stringify } from "superjson";
 import type { CacheAdapter } from "../types/adapters";
 import type {
 	SugarBoxAchievementsKey,
+	SugarBoxAutoSaveKey,
 	SugarBoxConfig,
 	SugarBoxExportData,
 	SugarBoxMetadata,
@@ -23,6 +24,8 @@ import type {
 } from "../types/userland-classes";
 
 const defaultConfig = {
+	autoSave: false,
+
 	maxStateCount: 100,
 
 	stateMergeCount: 1,
@@ -450,9 +453,11 @@ class SugarboxEngine<
 
 	/** Using the provided persistence adapter, this saves all vital data for the combined state, metadata, and current index
 	 *
+	 * @param saveSlot if not provided, defaults to the autosave slot
+	 *
 	 * @throws if the persistence adapter is not available
 	 */
-	async saveToSaveSlot(saveSlot: number): Promise<void> {
+	async saveToSaveSlot(saveSlot?: number): Promise<void> {
 		const { persistence } = this.#config;
 
 		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
@@ -469,9 +474,12 @@ class SugarboxEngine<
 	}
 
 	/**
+	 *
+	 * @param saveSlot if not provided, defaults to the autosave slot
+	 *
 	 * @throws if the save slot is invalid or if the persistence adapter is not available
 	 */
-	async loadFromSaveSlot(saveSlot: number): Promise<void> {
+	async loadFromSaveSlot(saveSlot?: number): Promise<void> {
 		const { persistence } = this.#config;
 
 		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
@@ -548,7 +556,12 @@ class SugarboxEngine<
 		}
 	}
 
-	#getSaveKeyFromSaveSlotNumber(saveSlot: number): SugarBoxSaveKey {
+	/** If not given any argument, defaults to the autosave slot */
+	#getSaveKeyFromSaveSlotNumber(
+		saveSlot?: number,
+	): SugarBoxSaveKey | SugarBoxAutoSaveKey {
+		if (!saveSlot) return `sugarbox-${this.name}-autosave`;
+
 		this.#assertSaveSlotIsValid(saveSlot);
 
 		return `sugarbox-${this.name}-${saveSlot}`;
@@ -745,7 +758,28 @@ class SugarboxEngine<
 			SnapshotWithMetadata<TVariables>
 		>[TEventType],
 	): boolean {
-		return this.#dispatchCustomEvent(this.#createCustomEvent(name, data));
+		const dispatchResult = this.#dispatchCustomEvent(
+			this.#createCustomEvent(name, data),
+		);
+
+		const { autoSave } = this.#config;
+
+		switch (name) {
+			case ":passageChange": {
+				if (autoSave === "passage") {
+					this.saveToSaveSlot();
+				}
+				break;
+			}
+
+			case ":stateChange": {
+				if (autoSave === "state") {
+					this.saveToSaveSlot();
+				}
+			}
+		}
+
+		return dispatchResult;
 	}
 
 	async #saveAchievements(): Promise<void> {
