@@ -647,8 +647,10 @@ class SugarboxEngine<
 
 		upperIndex = Math.min(upperIndex, lastIndex);
 
+		const difference = upperIndex - lowerIndex;
+
 		const indexesToMerge: ReadonlySet<number> = new Set(
-			Array.from(Array(upperIndex - lowerIndex + 1), (_, i) => lowerIndex + i),
+			Array.from(Array(difference + 1), (_, i) => lowerIndex + i),
 		);
 
 		const combinedSnapshot: SnapshotWithMetadata<TVariables> = {};
@@ -681,6 +683,9 @@ class SugarboxEngine<
 		}
 
 		this.#stateSnapshots = newSnapshotArray;
+
+		// Since the index will be pointing to an undefined snapshot after merging, we need to set it back to the last valid index
+		this.#index = this.#index - difference;
 
 		this.#stateCache?.clear();
 	}
