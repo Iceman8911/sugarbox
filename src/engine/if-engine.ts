@@ -849,6 +849,40 @@ class SugarboxEngine<
 	): StateWithMetadata<TVariables> {
 		return clone(state);
 	}
+
+	/** For testing purposes.
+	 *
+	 * It's only populated in development mode.
+	 */
+	get testAPI(): {
+		mergeSnapshots: (lowerIndex: number, upperIndex: number) => void;
+		getSnapshotAtIndex: (index: number) => SnapshotWithMetadata<TVariables>;
+		getStateAtIndex: (
+			index?: number,
+		) => Readonly<StateWithMetadata<TVariables>>;
+		addNewSnapshot: () => SnapshotWithMetadata<TVariables>;
+		setIndex: (val: number) => void;
+		cloneState: (
+			state: StateWithMetadata<TVariables>,
+		) => StateWithMetadata<TVariables>;
+		snapshots: Array<SnapshotWithMetadata<TVariables>>;
+		initialState: Readonly<StateWithMetadata<TVariables>>;
+	} | null {
+		if (process.env.NODE_ENV !== "production") {
+			return {
+				mergeSnapshots: this.#mergeSnapshots.bind(this),
+				getSnapshotAtIndex: this.#getSnapshotAtIndex.bind(this),
+				getStateAtIndex: this.#getStateAtIndex.bind(this),
+				addNewSnapshot: this.#addNewSnapshot.bind(this),
+				setIndex: this.#setIndex.bind(this),
+				cloneState: this.#cloneState.bind(this),
+				snapshots: this.#stateSnapshots,
+				initialState: this.#initialState,
+			};
+		}
+
+		return null;
+	}
 }
 
 /** General prupose cloning helper
