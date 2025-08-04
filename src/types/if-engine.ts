@@ -14,7 +14,7 @@ type SugarBoxMetadata = {
  *
  * Consists of the engine's name and save slot number
  */
-type SugarBoxSaveKey = `sugarbox-${string}-${number}`;
+type SugarBoxSaveKey = `sugarbox-${string}-slot${number}`;
 
 type SugarBoxAutoSaveKey = `sugarbox-${string}-autosave`;
 

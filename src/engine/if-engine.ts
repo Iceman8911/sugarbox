@@ -564,7 +564,7 @@ class SugarboxEngine<
 
 		this.#assertSaveSlotIsValid(saveSlot);
 
-		return `sugarbox-${this.name}-${saveSlot}`;
+		return `sugarbox-${this.name}-slot${saveSlot}`;
 	}
 
 	get #achivementsStorageKey(): SugarBoxAchievementsKey {
