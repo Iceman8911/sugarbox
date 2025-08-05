@@ -191,4 +191,42 @@ describe("SugarboxEngine", () => {
 
 		expect(engine.vars.player.favouriteItem()).toBe("Black Sword");
 	});
+
+	test("ensure events are emitted with the appropriate data", async () => {
+		let passageNavigatedData: null | {
+			newPassage: string;
+			oldPassage: string;
+		} = null;
+
+		engine.on(":passageChange", ({ detail: { newPassage, oldPassage } }) => {
+			if (newPassage && oldPassage) {
+				passageNavigatedData = { newPassage, oldPassage };
+			}
+		});
+
+		engine.navigateTo(SAMPLE_PASSAGES[0].name);
+
+		expect(passageNavigatedData).not.toBeNull();
+
+		//@ts-expect-error
+		expect(passageNavigatedData?.newPassage).toEqual(
+			SAMPLE_PASSAGES[0].passage,
+		);
+
+		let stateChangedData: null | { newState: unknown; oldState: unknown } =
+			null;
+
+		engine.on(":stateChange", ({ detail: { newState, oldState } }) => {
+			stateChangedData = { newState, oldState };
+		});
+
+		engine.setVars((state) => {
+			state.player.name = "Alice";
+		});
+
+		expect(stateChangedData).not.toBeNull();
+
+		//@ts-expect-error
+		expect(stateChangedData?.newState.player.name).toEqual("Alice");
+	});
 });
