@@ -854,7 +854,7 @@ class SugarboxEngine<
 	 *
 	 * It's only populated in development mode.
 	 */
-	get testAPI(): {
+	get __testAPI(): {
 		mergeSnapshots: (lowerIndex: number, upperIndex: number) => void;
 		getSnapshotAtIndex: (index: number) => SnapshotWithMetadata<TVariables>;
 		getStateAtIndex: (
