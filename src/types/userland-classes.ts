@@ -1,31 +1,37 @@
 /** All userland custom classes need to implement this if they must be part of the story's state */
-type SugarBoxCompatibleClassInstance<TClassInstance> = {
+type SugarBoxCompatibleClassInstance<TClassInstance, TSerializedStructure> = {
 	/** Must return a deeply-cloned copy of the class.
 	 *
 	 * Used to copy over classes into the current state.
 	 */
 	__clone: () => TClassInstance;
 
-	/** Must return a string that when deserialized, can be reinitialized into an identical clone of the class.
+	/** Must return a serializable (using SuperJSON) plain object that when deserialized, can be reinitialized into an identical clone of the class.
 	 *
 	 * Is required for persistence.
 	 */
-	__toJSON: () => string;
+	__toJSON: () => TSerializedStructure;
 };
 
-type SugarBoxCompatibleClassConstructor<TClassInstance, TSerializedData> = {
-	new (...args: unknown[]): SugarBoxCompatibleClassInstance<TClassInstance>;
+type SugarBoxCompatibleClassConstructor<TClassInstance, TSerializedStructure> =
+	{
+		new (
+			...args: unknown[]
+		): SugarBoxCompatibleClassInstance<TClassInstance, TSerializedStructure>;
 
-	/** Immutable id that must be stable (i.e never ever change if you wish to keep current saves compatible) since it is used to index registered classes in the engine */
-	readonly __classId: string;
+		/** Immutable id that must be stable (i.e never ever change if you wish to keep current saves compatible) since it is used to index registered classes in the engine */
+		readonly __classId: string;
 
-	/** Static method for reviving the class */
-	__fromJSON(
-		serializedData: TSerializedData,
-	): SugarBoxCompatibleClassInstance<TClassInstance>;
+		/** Static method for reviving the class */
+		__fromJSON(
+			serializedData: TSerializedStructure,
+		): SugarBoxCompatibleClassInstance<TClassInstance, TSerializedStructure>;
 
-	prototype: SugarBoxCompatibleClassInstance<TClassInstance>;
-};
+		prototype: SugarBoxCompatibleClassInstance<
+			TClassInstance,
+			TSerializedStructure
+		>;
+	};
 
 export type {
 	SugarBoxCompatibleClassInstance,

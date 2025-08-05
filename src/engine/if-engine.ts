@@ -435,17 +435,19 @@ class SugarboxEngine<
 		...customClasses: SugarBoxCompatibleClassConstructor<unknown, unknown>[]
 	): void {
 		customClasses.forEach((customClass) => {
-			registerCustom<SugarBoxCompatibleClassInstance<unknown>, string>(
+			registerCustom<SugarBoxCompatibleClassInstance<unknown, unknown>, string>(
 				{
 					deserialize: (serializedString) =>
-						customClass.__fromJSON(serializedString),
+						customClass.__fromJSON(parse(serializedString)),
 
 					isApplicable: (
 						possibleClass,
-					): possibleClass is SugarBoxCompatibleClassInstance<unknown> =>
-						possibleClass instanceof customClass,
+					): possibleClass is SugarBoxCompatibleClassInstance<
+						unknown,
+						unknown
+					> => possibleClass instanceof customClass,
 
-					serialize: (instance) => instance.__toJSON(),
+					serialize: (instance) => stringify(instance.__toJSON()),
 				},
 
 				customClass.__classId,
