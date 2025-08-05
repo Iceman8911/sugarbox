@@ -28,6 +28,8 @@ import { clone } from "../utils/clone";
 const defaultConfig = {
 	autoSave: false,
 
+	loadOnStart: true,
+
 	maxStateCount: 100,
 
 	stateMergeCount: 1,
@@ -211,12 +213,20 @@ class SugarboxEngine<
 			otherPassages,
 		);
 
+		const { loadOnStart } = config;
+
 		// If there's any stored achievements or settings, load them in place of the data provided
 		// If the user want to empty the acheivements or settings, they can explicitly do so with the `set***()` methods
-		await Promise.allSettled([
+		// Also load the most recent save if `loadOnStart` is true
+		const [__, ___, mostRecentSave] = await Promise.allSettled([
 			engine.#loadAchievements(),
 			engine.#loadSettings(),
+			loadOnStart ? engine.#getMostRecentSave() : Promise.resolve(null),
 		]);
+
+		if (mostRecentSave.status === "fulfilled" && mostRecentSave.value) {
+			engine.loadSaveFromData(mostRecentSave.value);
+		}
 
 		return engine;
 	}
@@ -669,6 +679,26 @@ class SugarboxEngine<
 				}
 			}
 		}
+	}
+
+	async #getMostRecentSave(): Promise<SugarBoxSaveData<TVariables> | null> {
+		const persistence = this.#config.persistence;
+
+		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
+
+		let mostRecentSave: SugarBoxSaveData<TVariables> | null = null;
+
+		for await (const { data } of this.getSaves()) {
+			if (!mostRecentSave) {
+				mostRecentSave = data;
+			} else {
+				if (data.savedOn > mostRecentSave.savedOn) {
+					mostRecentSave = data;
+				}
+			}
+		}
+
+		return mostRecentSave;
 	}
 
 	#isPassageIdValid(passageId: string): boolean {

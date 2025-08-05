@@ -109,6 +109,13 @@ type SugarBoxConfig<
 	 */
 	autoSave: "passage" | "state" | false;
 
+	/**
+	 * If `true`, the most recent save (if any) will be loaded when the engine is initialized
+	 *
+	 * @default true
+	 */
+	loadOnStart: boolean;
+
 	/** Optional cache adapter to use to speed up state fetching */
 	cache?: CacheAdapter<
 		number,
