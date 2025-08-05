@@ -30,6 +30,10 @@ async function initEngine() {
 			items: ["Black Sword", "Slug Shield", "Old Cloth"],
 		};
 
+		favouriteItem() {
+			return this.inventory.items[0];
+		}
+
 		__clone() {
 			const clone = new Player();
 
@@ -167,5 +171,21 @@ describe("SugarboxEngine", () => {
 		await engine.loadFromSaveSlot(1);
 
 		expect(engine.vars.player.inventory.items).not.toContain(testItem);
+	});
+
+	test("custom classes should still work after saving / loading", async () => {
+		engine.setVars((state) => {
+			state.player.name = "Alice";
+			state.player.age = 30;
+			state.player.class = "Mage";
+		});
+
+		await engine.saveToSaveSlot(1);
+
+		engine.navigateTo(SAMPLE_PASSAGES[2].name);
+
+		await engine.loadFromSaveSlot(1);
+
+		expect(engine.vars.player.favouriteItem()).toBe("Black Sword");
 	});
 });

@@ -116,13 +116,7 @@ type SugarBoxConfig<
 	>;
 
 	/** Optional persistence adapter for saving support */
-	persistence?: PersistenceAdapter<
-		| SugarBoxSaveKey
-		| SugarBoxAchievementsKey
-		| SugarBoxSettingsKey
-		| SugarBoxAutoSaveKey,
-		string
-	>;
+	persistence?: PersistenceAdapter<SugarBoxAnyKey, string>;
 };
 
 type SugarBoxPassage<TPassageType> = {
