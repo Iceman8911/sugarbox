@@ -103,7 +103,7 @@ class SugarboxEngine<
 	 */
 	#index: number;
 
-	#config: SugarBoxConfig;
+	#config: SugarBoxConfig<TVariables>;
 
 	/** Indexed by the passage id.
 	 *
