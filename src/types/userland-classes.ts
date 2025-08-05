@@ -13,6 +13,7 @@ type SugarBoxCompatibleClassInstance<TClassInstance, TSerializedStructure> = {
 	__toJSON: () => TSerializedStructure;
 };
 
+/** All userland custom class constructors need to implement this if they must be part of the story's state */
 type SugarBoxCompatibleClassConstructor<TClassInstance, TSerializedStructure> =
 	{
 		new (
@@ -33,7 +34,17 @@ type SugarBoxCompatibleClassConstructor<TClassInstance, TSerializedStructure> =
 		>;
 	};
 
+/** Typescript work around for ensuring that constructors have the appropriate static methods */
+type SugarBoxCompatibleClassConstructorCheck<
+	TSerializedStructure,
+	TClassConstructor extends SugarBoxCompatibleClassConstructor<
+		TClassConstructor["prototype"],
+		TSerializedStructure
+	>,
+> = TClassConstructor;
+
 export type {
 	SugarBoxCompatibleClassInstance,
 	SugarBoxCompatibleClassConstructor,
+	SugarBoxCompatibleClassConstructorCheck,
 };
