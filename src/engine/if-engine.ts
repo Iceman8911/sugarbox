@@ -503,6 +503,9 @@ class SugarboxEngine<
 		this.#initialState = intialState;
 		this.#stateSnapshots = snapshots;
 		this.#index = storyIndex;
+
+		// Clear the state cache since the state has changed
+		this.#stateCache?.clear();
 	}
 
 	/** For saves the need to exported out of the browser */
