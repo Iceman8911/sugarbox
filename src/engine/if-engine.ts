@@ -382,6 +382,8 @@ class SugarboxEngine<
 	 *
 	 * This is essentially the way of linking between passages in the story.
 	 *
+	 * Yes, you can navigate to the same passage multiple times, and it will create a new snapshot each time. It's intended behavior.
+	 *
 	 * @throws if the passage id hasn't been added to the engine
 	 */
 	navigateTo(
