@@ -1,7 +1,7 @@
 import { mock } from "bun:test";
 import type { PersistenceAdapter } from "../../src/types/adapters";
 
-const persistenceAdapter: () => PersistenceAdapter<string, string> = mock(
+const createPersistenceAdapter: () => PersistenceAdapter<string, string> = mock(
 	() => {
 		const store = new Map<string, string>();
 
@@ -23,4 +23,4 @@ const persistenceAdapter: () => PersistenceAdapter<string, string> = mock(
 	},
 );
 
-export { persistenceAdapter };
+export { createPersistenceAdapter };
