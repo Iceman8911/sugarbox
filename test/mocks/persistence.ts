@@ -17,6 +17,10 @@ const createPersistenceAdapter: () => PersistenceAdapter<string, string> = mock(
 			async delete(key) {
 				store.delete(key);
 			},
+
+			async keys() {
+				return store.keys();
+			},
 		};
 
 		return adapter;

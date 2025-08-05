@@ -16,6 +16,9 @@ type PersistenceAdapter<TKey, TData> = {
 	get(key: TKey): Promise<TData | undefined | null>;
 
 	delete(key: TKey): Promise<unknown>;
+
+	/** If provided, makes returning an iterable / list of used save slots more efficient. Otherwise, `get()` will be used as a workaround */
+	keys?(): Promise<Iterable<TKey>>;
 };
 
 export type { CacheAdapter, PersistenceAdapter };
