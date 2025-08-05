@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { SugarboxEngine } from "../../src";
+import type {
+	SugarBoxCompatibleClassConstructorCheck,
+	SugarBoxCompatibleClassInstance,
+} from "../../src/types/userland-classes";
+import { createPersistenceAdapter } from "../mocks/persistence";
 
 const SAMPLE_PASSAGES = [
 	{ name: "Passage2", passage: "Lorem Ipsum" },
@@ -11,26 +16,74 @@ const SAMPLE_PASSAGES = [
 ] as const;
 
 async function initEngine() {
-	return SugarboxEngine.init({
+	class Player
+		implements SugarBoxCompatibleClassInstance<Player, SerializedPlayer>
+	{
+		name = "Dave";
+		age = 21;
+		class = "Paladin";
+		level = 6;
+		location = "Tavern";
+		inventory = {
+			gold: 123,
+			gems: 12,
+			items: ["Black Sword", "Slug Shield", "Old Cloth"],
+		};
+
+		__clone() {
+			const clone = new Player();
+
+			Object.assign(clone, this);
+
+			return clone;
+		}
+
+		__toJSON() {
+			return { ...this };
+		}
+
+		static __classId = "Player";
+
+		static __fromJSON(
+			serializedData: SerializedPlayer,
+		): SugarBoxCompatibleClassInstance<Player, SerializedPlayer> {
+			const player = new Player();
+
+			Object.assign(player, serializedData);
+
+			return player;
+		}
+	}
+
+	const dummy = { ...new Player() };
+
+	type SerializedPlayer = typeof dummy;
+
+	type PlayerCheck = SugarBoxCompatibleClassConstructorCheck<
+		SerializedPlayer,
+		typeof Player
+	>;
+
+	const engine = await SugarboxEngine.init({
 		name: "Test",
 		otherPassages: [...SAMPLE_PASSAGES],
 		startPassage: { name: "Start", passage: "This is the start passage" },
 		variables: {
-			name: "Dave",
-			age: 21,
-			class: "Paladin",
-			level: 6,
-			location: "Tavern",
-			inventory: {
-				gold: 123,
-				gems: 12,
-				items: ["Black Sword", "Slug Shield", "Old Cloth"],
+			player: new Player(),
+			others: {
+				hoursPlayed: 1.5,
+				stage: 3,
 			},
 		},
 		config: {
 			maxStateCount: 1_000_000,
+			persistence: createPersistenceAdapter(),
 		},
 	});
+
+	engine.registerClasses(Player);
+
+	return engine;
 }
 
 let engine: ReturnType<typeof initEngine> extends Promise<infer T> ? T : never;
@@ -42,22 +95,22 @@ beforeEach(async () => {
 describe("SugarboxEngine", () => {
 	test("story variables should be set without issue and persist after passage navigation", async () => {
 		engine.setVars((state) => {
-			state.name = "Bob";
+			state.player.name = "Bob";
 
-			state.inventory.gems++;
+			state.player.inventory.gems++;
 
-			state.inventory.items.push("Overpowered Sword");
+			state.player.inventory.items.push("Overpowered Sword");
 		});
 
 		engine.navigateTo(SAMPLE_PASSAGES[0].name);
 
 		expect(
-			engine.vars.inventory.items.includes("Overpowered Sword"),
+			engine.vars.player.inventory.items.includes("Overpowered Sword"),
 		).toBeTrue();
 
-		expect(engine.vars.inventory.gems).toBe(13);
+		expect(engine.vars.player.inventory.gems).toBe(13);
 
-		expect(engine.vars.name).toBe("Bob");
+		expect(engine.vars.player.name).toBe("Bob");
 	});
 
 	test("passage navigation should increment the index", async () => {
@@ -88,5 +141,31 @@ describe("SugarboxEngine", () => {
 		}
 
 		expect(didThrow).toBeTrue();
+	});
+
+	test("should be able to save and load the state restoring the relevant variable values", async () => {
+		await engine.saveToSaveSlot(1);
+
+		engine.navigateTo(SAMPLE_PASSAGES[1].name);
+
+		const testItem = "Test Item";
+
+		engine.setVars((state) => {
+			state.player.level++;
+
+			state.others.stage++;
+
+			state.player.location = SAMPLE_PASSAGES[1].name;
+
+			state.player.inventory.items.push(testItem);
+		});
+
+		await engine.saveToSaveSlot(2);
+
+		expect(engine.vars.player.inventory.items).toContain(testItem);
+
+		await engine.loadFromSaveSlot(1);
+
+		expect(engine.vars.player.inventory.items).not.toContain(testItem);
 	});
 });
