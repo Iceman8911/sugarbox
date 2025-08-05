@@ -23,6 +23,7 @@ import type {
 	SugarBoxCompatibleClassConstructor,
 	SugarBoxCompatibleClassInstance,
 } from "../types/userland-classes";
+import { clone } from "../utils/clone";
 
 const defaultConfig = {
 	autoSave: false,
@@ -797,7 +798,7 @@ class SugarboxEngine<
 
 		if (cachedState) return cachedState;
 
-		const state = this.#cloneState(this.#initialState);
+		const state = clone<StateWithMetadata<TVariables>>(this.#initialState);
 
 		for (let i = 0; i <= effectiveIndex; i++) {
 			let partialUpdateKey: keyof TVariables;
@@ -928,12 +929,6 @@ class SugarboxEngine<
 		}
 	}
 
-	#cloneState(
-		state: StateWithMetadata<TVariables>,
-	): StateWithMetadata<TVariables> {
-		return clone(state);
-	}
-
 	/** For testing purposes.
 	 *
 	 * It's only populated in development mode.
@@ -946,9 +941,6 @@ class SugarboxEngine<
 		) => Readonly<StateWithMetadata<TVariables>>;
 		addNewSnapshot: () => SnapshotWithMetadata<TVariables>;
 		setIndex: (val: number) => void;
-		cloneState: (
-			state: StateWithMetadata<TVariables>,
-		) => StateWithMetadata<TVariables>;
 		snapshots: Array<SnapshotWithMetadata<TVariables>>;
 		initialState: Readonly<StateWithMetadata<TVariables>>;
 	} | null {
@@ -959,23 +951,12 @@ class SugarboxEngine<
 				getStateAtIndex: this.#getStateAtIndex.bind(this),
 				addNewSnapshot: this.#addNewSnapshot.bind(this),
 				setIndex: this.#setIndex.bind(this),
-				cloneState: this.#cloneState.bind(this),
 				snapshots: this.#stateSnapshots,
 				initialState: this.#initialState,
 			};
 		}
 
 		return null;
-	}
-}
-
-/** General prupose cloning helper
- */
-function clone<TData>(val: TData): TData {
-	try {
-		return parse(stringify(val));
-	} catch {
-		return structuredClone(val);
 	}
 }
 
