@@ -499,8 +499,18 @@ class SugarboxEngine<
 			throw new Error(`No save data found for slot ${saveSlot}`);
 		}
 
+		this.loadSaveFromData(parse(serializedSaveData));
+	}
+
+	/** Loads the save data from the provided save data object.
+	 *
+	 * This is used to load saves from the `getSaves()` method.
+	 *
+	 * @param save The save data to load
+	 */
+	loadSaveFromData(save: SugarBoxSaveData<TVariables>): void {
 		const { intialState, snapshots, storyIndex }: SugarBoxSaveData<TVariables> =
-			parse(serializedSaveData);
+			save;
 
 		// Replace the current state
 		this.#initialState = intialState;
