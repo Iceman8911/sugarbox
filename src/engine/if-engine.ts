@@ -406,16 +406,23 @@ class SugarboxEngine<
 		return newSnapshot;
 	}
 
-	/** Subscribe to an event */
+	/** Subscribe to an event.
+	 *
+	 * @returns a function that can be used to unsubscribe from the event.
+	 */
 	on<TEventType extends keyof SugarBoxEvents<TPassageType, TVariables>>(
 		type: TEventType,
 		listener: (
 			event: CustomEvent<SugarBoxEvents<TPassageType, TVariables>[TEventType]>,
 		) => void,
 		options?: boolean | AddEventListenerOptions,
-	): void {
+	): () => void {
 		//@ts-expect-error TS doesn't know that the custom event will exist at runtime
 		this.#eventTarget.addEventListener(type, listener, options);
+
+		return () => {
+			this.off(type, listener, options);
+		};
 	}
 
 	/** Unsubscribe from an event */

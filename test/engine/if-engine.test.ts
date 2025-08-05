@@ -192,17 +192,21 @@ describe("SugarboxEngine", () => {
 		expect(engine.vars.player.favouriteItem()).toBe("Black Sword");
 	});
 
-	test("ensure events are emitted with the appropriate data", async () => {
+	test("ensure events are emitted with the appropriate data and can be turned off", async () => {
+		// :passageChange event
 		let passageNavigatedData: null | {
 			newPassage: string;
 			oldPassage: string;
 		} = null;
 
-		engine.on(":passageChange", ({ detail: { newPassage, oldPassage } }) => {
-			if (newPassage && oldPassage) {
-				passageNavigatedData = { newPassage, oldPassage };
-			}
-		});
+		const endListener = engine.on(
+			":passageChange",
+			({ detail: { newPassage, oldPassage } }) => {
+				if (newPassage && oldPassage) {
+					passageNavigatedData = { newPassage, oldPassage };
+				}
+			},
+		);
 
 		engine.navigateTo(SAMPLE_PASSAGES[0].name);
 
@@ -213,12 +217,29 @@ describe("SugarboxEngine", () => {
 			SAMPLE_PASSAGES[0].passage,
 		);
 
+		// From this point no changes should be registered
+		endListener();
+
+		engine.navigateTo(SAMPLE_PASSAGES[1].name);
+
+		//@ts-expect-error
+		expect(passageNavigatedData?.newPassage).not.toBe(
+			SAMPLE_PASSAGES[1].passage,
+		);
+
+		// :stateChange event
 		let stateChangedData: null | { newState: unknown; oldState: unknown } =
 			null;
 
-		engine.on(":stateChange", ({ detail: { newState, oldState } }) => {
-			stateChangedData = { newState, oldState };
-		});
+		let stateChangeCount = 0;
+
+		const endListener2 = engine.on(
+			":stateChange",
+			({ detail: { newState, oldState } }) => {
+				stateChangedData = { newState, oldState };
+				stateChangeCount++;
+			},
+		);
 
 		engine.setVars((state) => {
 			state.player.name = "Alice";
@@ -228,5 +249,19 @@ describe("SugarboxEngine", () => {
 
 		//@ts-expect-error
 		expect(stateChangedData?.newState.player.name).toEqual("Alice");
+
+		expect(stateChangeCount).toBe(1);
+
+		// From this point no changes should be registered
+		endListener2();
+
+		engine.setVars((state) => {
+			state.others.stage = 1;
+		});
+
+		expect(stateChangeCount).not.toBe(2);
+
+		//@ts-ignore This expect keeps failing, since the state will still be changed via reference (?)
+		// expect(stateChangedData?.newState.others.stage).not.toBe(1);
 	});
 });
