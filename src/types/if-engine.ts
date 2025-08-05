@@ -24,15 +24,37 @@ type SugarBoxSettingsKey = `sugarbox-${string}-settings`;
 
 /** Data structure used for saving the state of the engine
  *
- * Contains initial state, snapshots, and current story index
+ * Contains initial state, snapshots, current story index and other relevant metadata
  */
 type SugarBoxSaveData<
 	TStructure extends Record<string, unknown> = Record<string, unknown>,
-> = {
+> = Readonly<{
 	intialState: SugarBoxVariables<TStructure> & SugarBoxMetadata;
+
 	snapshots: Partial<SugarBoxVariables<TStructure> & SugarBoxMetadata>[];
+
 	storyIndex: number;
-};
+
+	// Save metadata
+	/** When the save was created */
+	savedOn: Date;
+
+	/** ID of the last passage that was navigated to */
+	lastPassageId: string;
+
+	/** A user-provided description for the save. TODO */
+	// description?: string;
+
+	/** Total play time in seconds. TODO */
+	// playtimeInSeconds: number;
+
+	/** The version of the story associated with this save. TODO */
+	// storyVersion: {
+	// 	major: number;
+	// 	minor: number;
+	// 	patch: number;
+	// };
+}>;
 
 /** Export data structure used for saving the state of the engine to disk.
  *

@@ -470,6 +470,8 @@ class SugarboxEngine<
 
 		const saveData: SugarBoxSaveData<TVariables> = {
 			intialState: this.#initialState,
+			lastPassageId: this.passageId,
+			savedOn: new Date(),
 			snapshots: this.#stateSnapshots,
 			storyIndex: this.#index,
 		};
@@ -508,6 +510,11 @@ class SugarboxEngine<
 		this.#stateCache?.clear();
 	}
 
+	/** Returns an object containing the used save slots and whether an auto save is available as well as thier save specific metadata */
+	// async getSaves():Promise<{autosave:boolean, saveSlots:number[]}>{
+
+	// }
+
 	/** For saves the need to exported out of the browser */
 	saveToExport(): string {
 		const exportData: SugarBoxExportData<
@@ -517,6 +524,8 @@ class SugarboxEngine<
 		> = {
 			saveData: {
 				intialState: this.#initialState,
+				lastPassageId: this.passageId,
+				savedOn: new Date(),
 				snapshots: this.#stateSnapshots,
 				storyIndex: this.#index,
 			},
