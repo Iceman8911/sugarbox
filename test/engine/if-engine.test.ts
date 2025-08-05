@@ -80,7 +80,7 @@ async function initEngine() {
 			},
 		},
 		config: {
-			maxStateCount: 1_000_000,
+			maxStateCount: 100,
 			persistence: createPersistenceAdapter(),
 		},
 	});
@@ -120,13 +120,24 @@ describe("SugarboxEngine", () => {
 	test("passage navigation should increment the index", async () => {
 		engine.navigateTo(SAMPLE_PASSAGES[0].name);
 
-		expect(engine.passageId).toBe(SAMPLE_PASSAGES[0].name);
+		expect(engine.index).toBe(1);
 
-		for (let i = 1; i < 1_000; i++) {
-			engine.navigateTo(SAMPLE_PASSAGES.map((data) => data.name)[i % (3 + 1)]);
+		engine.navigateTo(SAMPLE_PASSAGES[1].name);
+
+		expect(engine.index).toBe(2);
+	});
+
+	test("the state history should not go beyond the given limit and older entries should be squashed together", async () => {
+		for (let i = 0; i < 1_000; i++) {
+			engine.navigateTo(
+				SAMPLE_PASSAGES.map((data) => data.name)[
+					i % (SAMPLE_PASSAGES.length + 1)
+				],
+			);
 		}
 
-		expect(engine.index).toBe(1_000);
+		// Since it's set to 100, the index cannot be more than 99
+		expect(engine.index).toBe(99);
 	});
 
 	test("should be able to navigate to a passage by its name while unavailable ones throw", async () => {
