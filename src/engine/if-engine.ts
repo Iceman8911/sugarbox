@@ -132,7 +132,7 @@ class SugarboxEngine<
 		startPassage: SugarBoxPassage<TPassageType>,
 		achievements: TAchievementData,
 		settings: TSettingsData,
-		config: Config<TVariables> | undefined = defaultConfig,
+		config: Config<TVariables>,
 		otherPassages: SugarBoxPassage<TPassageType>[],
 	) {
 		/** Initialize the state with the provided initial state */
@@ -187,7 +187,7 @@ class SugarboxEngine<
 		config?: Config<TVariables>;
 	}): Promise<SugarboxEngine<TPassageType, TVariables>> {
 		const {
-			config,
+			config = defaultConfig,
 			name,
 			startPassage,
 			otherPassages,
