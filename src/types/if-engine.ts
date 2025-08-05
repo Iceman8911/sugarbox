@@ -14,13 +14,20 @@ type SugarBoxMetadata = {
  *
  * Consists of the engine's name and save slot number
  */
-type SugarBoxSaveKey = `sugarbox-${string}-slot${number}`;
+type SugarBoxNormalSaveKey = `sugarbox-${string}-slot${number}`;
 
 type SugarBoxAutoSaveKey = `sugarbox-${string}-autosave`;
 
 type SugarBoxAchievementsKey = `sugarbox-${string}-achievements`;
 
 type SugarBoxSettingsKey = `sugarbox-${string}-settings`;
+
+type SugarBoxSaveKey = SugarBoxAutoSaveKey | SugarBoxNormalSaveKey;
+
+type SugarBoxAnyKey =
+	| SugarBoxSaveKey
+	| SugarBoxAchievementsKey
+	| SugarBoxSettingsKey;
 
 /** Data structure used for saving the state of the engine
  *
@@ -128,6 +135,8 @@ export type {
 	SugarBoxVariables,
 	SugarBoxConfig,
 	SugarBoxMetadata,
+	SugarBoxNormalSaveKey,
+	SugarBoxAnyKey,
 	SugarBoxSaveKey,
 	SugarBoxSaveData,
 	SugarBoxExportData,

@@ -13,6 +13,7 @@ import type {
 	SugarBoxConfig,
 	SugarBoxExportData,
 	SugarBoxMetadata,
+	SugarBoxNormalSaveKey,
 	SugarBoxPassage,
 	SugarBoxSaveData,
 	SugarBoxSaveKey,
@@ -510,10 +511,31 @@ class SugarboxEngine<
 		this.#stateCache?.clear();
 	}
 
-	/** Returns an object containing the used save slots and whether an auto save is available as well as thier save specific metadata */
-	// async getSaves():Promise<{autosave:boolean, saveSlots:number[]}>{
+	/** Returns an object containing the data of all present saves */
+	async *getSaves(): AsyncGenerator<
+		| { type: "autosave"; data: SugarBoxSaveData<TVariables> }
+		| { type: "normal"; slot: number; data: SugarBoxSaveData<TVariables> }
+	> {
+		const { persistence } = this.#config;
 
-	// }
+		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
+
+		for await (const key of this.#getKeysOfPresentSaves()) {
+			const serializedSaveData = await persistence.get(key);
+
+			if (!serializedSaveData) continue;
+
+			const saveData: SugarBoxSaveData<TVariables> = parse(serializedSaveData);
+
+			if (key === this.#getSaveKeyFromSaveSlotNumber()) {
+				yield { type: "autosave", data: saveData };
+			} else {
+				const slotNumber = parseInt(key.match(/slot(\d+)/)?.[1] ?? "-1");
+
+				yield { type: "normal", slot: slotNumber, data: saveData };
+			}
+		}
+	}
 
 	/** For saves the need to exported out of the browser */
 	saveToExport(): string {
@@ -573,9 +595,14 @@ class SugarboxEngine<
 	}
 
 	/** If not given any argument, defaults to the autosave slot */
+	#getSaveKeyFromSaveSlotNumber(): SugarBoxAutoSaveKey;
+	#getSaveKeyFromSaveSlotNumber(saveSlot: number): SugarBoxNormalSaveKey;
 	#getSaveKeyFromSaveSlotNumber(
 		saveSlot?: number,
-	): SugarBoxSaveKey | SugarBoxAutoSaveKey {
+	): SugarBoxNormalSaveKey | SugarBoxAutoSaveKey;
+	#getSaveKeyFromSaveSlotNumber(
+		saveSlot?: number,
+	): SugarBoxNormalSaveKey | SugarBoxAutoSaveKey {
 		if (!saveSlot) return `sugarbox-${this.name}-autosave`;
 
 		this.#assertSaveSlotIsValid(saveSlot);
@@ -589,6 +616,39 @@ class SugarboxEngine<
 
 	get #settingsStorageKey(): SugarBoxSettingsKey {
 		return `sugarbox-${this.name}-settings`;
+	}
+
+	async *#getKeysOfPresentSaves(): AsyncGenerator<SugarBoxSaveKey> {
+		const persistence = this.#config.persistence;
+
+		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
+
+		const keys = await persistence.keys?.();
+
+		if (keys) {
+			// Filter out the keys that are not save slots
+			for (const key of keys) {
+				if (key.includes(`slot`) || key.includes("autosave")) {
+					//@ts-expect-error TS doesn't know that the key is a SugarBoxSaveKey
+					yield key;
+				}
+			}
+		} else {
+			// Fallback to using get() to get the keys
+			const autosaveKey = this.#getSaveKeyFromSaveSlotNumber();
+
+			if (await persistence.get(autosaveKey)) {
+				yield autosaveKey;
+			}
+
+			for (let i = 0; i < this.#config.saveSlots; i++) {
+				const key = this.#getSaveKeyFromSaveSlotNumber(i);
+
+				if (await persistence.get(key)) {
+					yield key;
+				}
+			}
+		}
 	}
 
 	#isPassageIdValid(passageId: string): boolean {
