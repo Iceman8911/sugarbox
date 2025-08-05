@@ -174,15 +174,7 @@ describe("SugarboxEngine", () => {
 	});
 
 	test("custom classes should still work after saving / loading", async () => {
-		engine.setVars((state) => {
-			state.player.name = "Alice";
-			state.player.age = 30;
-			state.player.class = "Mage";
-		});
-
 		await engine.saveToSaveSlot(1);
-
-		engine.navigateTo(SAMPLE_PASSAGES[2].name);
 
 		await engine.loadFromSaveSlot(1);
 

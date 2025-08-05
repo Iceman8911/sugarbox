@@ -973,9 +973,9 @@ class SugarboxEngine<
  */
 function clone<TData>(val: TData): TData {
 	try {
-		return structuredClone(val);
-	} catch {
 		return parse(stringify(val));
+	} catch {
+		return structuredClone(val);
 	}
 }
 
