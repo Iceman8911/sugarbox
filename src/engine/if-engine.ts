@@ -350,11 +350,20 @@ class SugarboxEngine<
 		return this.#achievements;
 	}
 
-	/** Immer-style producer for setting achievements */
+	/** Immer-style producer for setting achievements
+	 *
+	 * If you need to replace the entire achievement object, *return a new object* (also make sure that undesirable properties are explicitly set to `null` else they'd still be included in the state) instead of directly *assigning the value
+	 */
 	async setAchievements(
-		producer: (state: TAchievementData) => void,
+		producer:
+			| ((state: TAchievementData) => void)
+			| ((state: TAchievementData) => TAchievementData),
 	): Promise<void> {
-		producer(this.#achievements);
+		const result = producer(this.#achievements);
+
+		if (result) {
+			this.#achievements = result;
+		}
 
 		await this.#saveAchievements();
 	}
@@ -363,9 +372,20 @@ class SugarboxEngine<
 		return this.#settings;
 	}
 
-	/** Immer-style producer for setting settings */
-	async setSettings(producer: (state: TSettingsData) => void): Promise<void> {
-		producer(this.#settings);
+	/** Immer-style producer for setting settings
+	 *
+	 * If you need to replace the entire settings object, *return a new object* (also make sure that undesirable properties are explicitly set to `null` else they'd still be included in the state) instead of directly *assigning the value
+	 */
+	async setSettings(
+		producer:
+			| ((state: TSettingsData) => void)
+			| ((state: TSettingsData) => TSettingsData),
+	): Promise<void> {
+		const result = producer(this.#settings);
+
+		if (result) {
+			this.#settings = result;
+		}
 
 		await this.#saveSettings();
 	}
