@@ -471,8 +471,19 @@ class SugarboxEngine<
 		customClasses.forEach((customClass) => {
 			registerCustom<SugarBoxCompatibleClassInstance<unknown, unknown>, string>(
 				{
-					deserialize: (serializedString) =>
-						customClass.__fromJSON(parse(serializedString)),
+					deserialize: (serializedString) => {
+						try {
+							const classInstance = customClass.__fromJSON(
+								parse(serializedString),
+							);
+
+							return classInstance;
+						} catch {
+							throw new Error(
+								`Failed to deserialize class instance of "${customClass.__classId}" from string: "${serializedString}"`,
+							);
+						}
+					},
 
 					isApplicable: (
 						possibleClass,
