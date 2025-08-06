@@ -60,18 +60,18 @@ type Config<TState extends Record<string, unknown>> = Partial<
 type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 	":passageChange": Readonly<{
 		/** The previous passage before the transition */
-		oldPassage: TPassageData | null;
+		oldPassage: Readonly<TPassageData> | null;
 
 		/** The new passage after the transition */
-		newPassage: TPassageData | null;
+		newPassage: Readonly<TPassageData> | null;
 	}>;
 
 	":stateChange": Readonly<{
 		/** The previous snapshot of only variables (to be changed) before the change */
-		oldState: TPartialSnapshot;
+		oldState: Readonly<TPartialSnapshot>;
 
 		/** A collection of only the changed variables after the change */
-		newState: TPartialSnapshot;
+		newState: Readonly<TPartialSnapshot>;
 	}>;
 
 	":init": null;
