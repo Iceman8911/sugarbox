@@ -75,6 +75,14 @@ type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 	}>;
 
 	":init": null;
+
+	":saveStart": null;
+
+	":saveEnd": { type: "success" } | { type: "error"; error: Error };
+
+	":loadStart": null;
+
+	":loadEnd": { type: "success" } | { type: "error"; error: Error };
 };
 
 /** The main engine for Sugarbox that provides headless interface to basic utilities required for Interactive Fiction
@@ -513,21 +521,26 @@ class SugarboxEngine<
 	 * @throws if the persistence adapter is not available
 	 */
 	async saveToSaveSlot(saveSlot?: number): Promise<void> {
-		const { persistence } = this.#config;
+		this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
+			"save",
+			async () => {
+				const { persistence } = this.#config;
 
-		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
+				SugarboxEngine.#assertPersistenceIsAvailable(persistence);
 
-		const saveKey = this.#getSaveKeyFromSaveSlotNumber(saveSlot);
+				const saveKey = this.#getSaveKeyFromSaveSlotNumber(saveSlot);
 
-		const saveData: SugarBoxSaveData<TVariables> = {
-			intialState: this.#initialState,
-			lastPassageId: this.passageId,
-			savedOn: new Date(),
-			snapshots: this.#stateSnapshots,
-			storyIndex: this.#index,
-		};
+				const saveData: SugarBoxSaveData<TVariables> = {
+					intialState: this.#initialState,
+					lastPassageId: this.passageId,
+					savedOn: new Date(),
+					snapshots: this.#stateSnapshots,
+					storyIndex: this.#index,
+				};
 
-		await persistence.set(saveKey, stringify(saveData));
+				await persistence.set(saveKey, stringify(saveData));
+			},
+		);
 	}
 
 	/**
@@ -537,19 +550,24 @@ class SugarboxEngine<
 	 * @throws if the save slot is invalid or if the persistence adapter is not available
 	 */
 	async loadFromSaveSlot(saveSlot?: number): Promise<void> {
-		const { persistence } = this.#config;
+		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
+			"load",
+			async () => {
+				const { persistence } = this.#config;
 
-		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
+				SugarboxEngine.#assertPersistenceIsAvailable(persistence);
 
-		const saveSlotKey = this.#getSaveKeyFromSaveSlotNumber(saveSlot);
+				const saveSlotKey = this.#getSaveKeyFromSaveSlotNumber(saveSlot);
 
-		const serializedSaveData = await persistence.get(saveSlotKey);
+				const serializedSaveData = await persistence.get(saveSlotKey);
 
-		if (!serializedSaveData) {
-			throw new Error(`No save data found for slot ${saveSlot}`);
-		}
+				if (!serializedSaveData) {
+					throw new Error(`No save data found for slot ${saveSlot}`);
+				}
 
-		this.loadSaveFromData(parse(serializedSaveData));
+				this.loadSaveFromData(parse(serializedSaveData));
+			},
+		);
 	}
 
 	/** Loads the save data from the provided save data object.
@@ -598,42 +616,54 @@ class SugarboxEngine<
 	}
 
 	/** For saves the need to exported out of the browser */
-	saveToExport(): string {
-		const exportData: SugarBoxExportData<
-			TVariables,
-			TSettingsData,
-			TAchievementData
-		> = {
-			saveData: {
-				intialState: this.#initialState,
-				lastPassageId: this.passageId,
-				savedOn: new Date(),
-				snapshots: this.#stateSnapshots,
-				storyIndex: this.#index,
-			},
-			settings: this.#settings,
-			achievements: this.#achievements,
-		};
+	async saveToExport(): Promise<string> {
+		return this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
+			"save",
+			async () => {
+				const exportData: SugarBoxExportData<
+					TVariables,
+					TSettingsData,
+					TAchievementData
+				> = {
+					saveData: {
+						intialState: this.#initialState,
+						lastPassageId: this.passageId,
+						savedOn: new Date(),
+						snapshots: this.#stateSnapshots,
+						storyIndex: this.#index,
+					},
+					settings: this.#settings,
+					achievements: this.#achievements,
+				};
 
-		return stringify(exportData);
+				return stringify(exportData);
+			},
+		);
 	}
 
 	/** Can be used when directly loading a save from an exported save on disk  */
-	loadFromExport(data: string): void {
-		const {
-			achievements,
-			saveData: { intialState, snapshots, storyIndex },
-			settings,
-		}: SugarBoxExportData<TVariables, TSettingsData, TAchievementData> = parse(
-			data,
-		);
+	async loadFromExport(data: string): Promise<void> {
+		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
+			"load",
+			async () => {
+				const {
+					achievements,
+					saveData: { intialState, snapshots, storyIndex },
+					settings,
+				}: SugarBoxExportData<
+					TVariables,
+					TSettingsData,
+					TAchievementData
+				> = parse(data);
 
-		// Replace the current state
-		this.#initialState = intialState;
-		this.#stateSnapshots = snapshots;
-		this.#index = storyIndex;
-		this.#achievements = achievements;
-		this.#settings = settings;
+				// Replace the current state
+				this.#initialState = intialState;
+				this.#stateSnapshots = snapshots;
+				this.#index = storyIndex;
+				this.#achievements = achievements;
+				this.#settings = settings;
+			},
+		);
 	}
 
 	static #assertPersistenceIsAvailable(
@@ -946,6 +976,35 @@ class SugarboxEngine<
 		}
 
 		return dispatchResult;
+	}
+
+	async #emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback<
+		TCallBackReturnValue,
+	>(
+		operation: "save" | "load",
+		callback: () => Promise<TCallBackReturnValue>,
+	): Promise<TCallBackReturnValue> {
+		this.#emitCustomEvent(
+			operation === "save" ? ":saveStart" : ":loadStart",
+			null,
+		);
+
+		try {
+			const result = await callback();
+
+			this.#emitCustomEvent(operation === "save" ? ":saveEnd" : ":loadEnd", {
+				type: "success",
+			});
+
+			return result;
+		} catch (e) {
+			this.#emitCustomEvent(operation === "save" ? ":saveEnd" : ":loadEnd", {
+				type: "error",
+				error: e instanceof Error ? e : new Error(String(e)),
+			});
+
+			throw e;
+		}
 	}
 
 	async #saveAchievements(): Promise<void> {

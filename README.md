@@ -99,6 +99,116 @@ Navigating to a new passage (which moves the index forward) whilist backwards in
 
 All custom classes that are stored in the story's state must conform to the type interfaces; `SugarBoxCompatibleClassInstance` and `SugarBoxCompatibleClassConstructor`, and also have the class constructor itself registered in the engine via `registerClasses(Class1, Class2, ..., ClassN)`. This is so that they can be cloned and serialized.
 
+## Saving and Loading
+
+Sugarbox provides two main mechanisms for saving and loading game progress: using storage-backed **save slots** for quick, persistent saves, and **exporting/importing** for manual backups or transferring saves between devices.
+
+### Persistence Configuration
+
+To use save slots, you must first provide a `persistence` adapter in the engine's configuration. This adapter is responsible for the actual reading and writing of save data to a storage medium like `localStorage`, `sessionStorage`, or even a remote database.
+
+A simple adapter using `localStorage` might look like this:
+
+```typescript
+// persistence-adapter.ts
+export function createPersistenceAdapter(storage = window.localStorage) {
+	return {
+		get: (key) => Promise.resolve(storage.getItem(key)),
+		set: (key, value) => Promise.resolve(storage.setItem(key, value)),
+		delete: (key) => Promise.resolve(storage.removeItem(key)),
+		keys: () => Promise.resolve(Object.keys(storage)),
+	};
+}
+```
+
+You would then pass this into the engine during initialization:
+
+```typescript
+import { SugarboxEngine } from "sugarbox";
+import { createPersistenceAdapter } from "./persistence-adapter";
+
+const engine = await SugarboxEngine.init({
+	// ...other options
+	config: {
+		persistence: createPersistenceAdapter(),
+	},
+});
+```
+
+### Save Slots
+
+Save slots are numbered locations where the game state can be stored. A maximum amount can be specified in the engine's `config` (the default is 20)
+
+* `async saveToSaveSlot(saveSlot?: number)`: Asynchronously saves the current game state to a specific slot number. If no slot is provided, it will use the autosave slot.
+
+    ```typescript
+    // Save the game to slot 1
+    await engine.saveToSaveSlot(1);
+    ```
+
+* `async loadFromSaveSlot(saveSlot?: number)`: Asynchronously loads a game state from a specific slot, overwriting the current state and history.
+
+    ```typescript
+    // Load the game from slot 1
+    await engine.loadFromSaveSlot(1);
+    ```
+
+* `async *getSaves()`: A generator function that yields information about all the saves that are currently stored, which you can use to build a "Load Game" screen.
+
+    ```typescript
+    const savesList = document.getElementById("saves-list");
+
+    for await (const save of engine.getSaves()) {
+    	const li = document.createElement("li");
+
+    	li.textContent = `Slot ${save.slot}: Saved on ${save.savedOn.toLocaleString()}`;
+
+    	savesList.appendChild(li);
+    }
+    ```
+
+### Exporting and Importing
+
+This method allows you to get a serialized string of the entire game state, which the player can copy and save manually, or have downloaded for use later.
+
+* `async saveToExport()`: Returns a promise that resolves with a serialized string representing the current game state.
+
+    ```typescript
+    const exportData = await engine.saveToExport();
+
+    // You could now display this string in a textarea for the user to copy or download it.
+    navigator.clipboard.writeText(exportData);
+
+    alert("Save data copied to clipboard!");
+    ```
+
+* `async loadFromExport(serializedData: string)`: Loads a game state from a serialized string.
+
+    ```typescript
+    const importData = prompt("Please paste your save data:");
+
+    if (importData) {
+    	try {
+    		await engine.loadFromExport(importData);
+
+    		alert("Game loaded successfully!");
+    	} catch (e) {
+    		alert("Failed to load save. The data may be corrupt.");
+    	}
+    }
+    ```
+
+### Save and Load Events
+
+For building responsive UIs, the engine fires events during the save/load lifecycle. You can listen to these using the `on()` method. This is useful for showing loading indicators, disabling buttons, or displaying success/error messages.
+
+The available events are:
+
+* `:saveStart`: Fired just before a save operation begins. The event `detail` is null.
+* `:saveEnd`: Fired after a save operation completes. The `detail` contains a discriminated union denoting whether the operation was successful or not. If not successful, an error is also returned.
+* `:loadStart`: Fired just before a load operation begins. The `detail` is null.
+* `:loadEnd`: Fired after a load operation completes. The `detail` contains a discriminated union denoting whether the operation was successful or not. If not successful, an error is also returned
+
 ## Contributing
 
 Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines.
