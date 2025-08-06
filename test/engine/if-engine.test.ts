@@ -96,7 +96,7 @@ beforeEach(async () => {
 	engine = await initEngine();
 });
 
-describe("SugarboxEngine", () => {
+describe("Passage Navigation", () => {
 	test("story variables should be set without issue and persist after passage navigation", async () => {
 		engine.setVars((state) => {
 			state.player.name = "Bob";
@@ -127,19 +127,6 @@ describe("SugarboxEngine", () => {
 		expect(engine.index).toBe(2);
 	});
 
-	test("the state history should not go beyond the given limit and older entries should be squashed together", async () => {
-		for (let i = 0; i < 1_000; i++) {
-			engine.navigateTo(
-				SAMPLE_PASSAGES.map((data) => data.name)[
-					i % (SAMPLE_PASSAGES.length + 1)
-				],
-			);
-		}
-
-		// Since it's set to 100, the index cannot be more than 99
-		expect(engine.index).toBe(99);
-	});
-
 	test("should be able to navigate to a passage by its name while unavailable ones throw", async () => {
 		engine.navigateTo(SAMPLE_PASSAGES[0].name);
 
@@ -157,7 +144,24 @@ describe("SugarboxEngine", () => {
 
 		expect(didThrow).toBeTrue();
 	});
+});
 
+describe("State History", () => {
+	test("the state history should not go beyond the given limit and older entries should be squashed together", async () => {
+		for (let i = 0; i < 1_000; i++) {
+			engine.navigateTo(
+				SAMPLE_PASSAGES.map((data) => data.name)[
+					i % (SAMPLE_PASSAGES.length + 1)
+				],
+			);
+		}
+
+		// Since it's set to 100, the index cannot be more than 99
+		expect(engine.index).toBe(99);
+	});
+});
+
+describe("Saving and Loading saves / save data", () => {
 	test("should be able to save and load the state restoring the relevant variable values", async () => {
 		await engine.saveToSaveSlot(1);
 
@@ -183,7 +187,9 @@ describe("SugarboxEngine", () => {
 
 		expect(engine.vars.player.inventory.items).not.toContain(testItem);
 	});
+});
 
+describe("Custom Classes", () => {
 	test("custom classes should still work after saving / loading", async () => {
 		await engine.saveToSaveSlot(1);
 
@@ -191,7 +197,9 @@ describe("SugarboxEngine", () => {
 
 		expect(engine.vars.player.favouriteItem()).toBe("Black Sword");
 	});
+});
 
+describe("Events", () => {
 	test("ensure events are emitted with the appropriate data and can be turned off", async () => {
 		// :passageChange event
 		let passageNavigatedData: null | {
