@@ -35,9 +35,69 @@ engine.setVars((state) => {
 engine.navigateTo("Other Passage Name")
 ```
 
+## Passages
+
+A passage can be anything from a string like markdown or html syntax, to objects like JSX components; just be consistent and pick a format. The only data the engine requires are the passage's id / name (which must be unique across all passages that will be added) and the data for the actual passage. Note that, the engine does not handle any rendering so it's up to you to decide how the data should be rendered.
+
+Passages can be passed to the engine during intialization via `startPassage` and `otherPassages` properties in the parameter object. The former denotes the intial passage to start on, while the other takes an array of any other passages; it's advised to pass all critically needed passages here. Other passages can still be added via the engine's method, `addPassages()` which can take an unlimited amount of paramaters.
+
+The current passage and it's id / name can be obtained via the getters, `passage` and `passageId`.
+
+### Navigation
+
+To move forward and access different passages, the `navigateTo(passageId: string)` method should be used.
+
+Upon navigation, a custom `:passageChange` event will be fired by the engine, and can be listened to via the `on()` method. This event contains the passage data for both the old and new passages.
+
+## How the "State" Works
+
+- The	`initial state` is object of variables that are passed to the engine when it is initialized. It is immutable.
+- A `snapshot` represents any changes made to the state afterwards for every point in passage navigation. As such, it only contains the changes made to the state since the last snapshot / initial state and avoids the ned to reclone the entire state object every time navigation occurs.
+	- Snapshots are stored in an array of customizable length (also known as the `state history`), via the `config` option when initializing the engine. During passage navigation, the engine will create a new snapshot (which is essentially an empty object at the start) push it to the array. When the array is nearing capacity, older snapshots will be merged into a single snapshot to create space. The amount of snapshots to combine when this occurs can be customized via the `config` object.
+- A `state` is the combination of the intial state and all the snapshots, up until the most recent one. It is effectively the current state of variables in the story.
+	- It value is derived on demand, unless a cache adapter is explictly passed into the engine's `config` (in this case, the value is cached when safe to do so), starts by looping through the snapshots, from the earliest till the most recent, applying the property changes from them.
+		- A property from a snapshot is only used if it is present (i.e you try setting it) and not `undefined`. If you want to denote that a property should not exist but the engine should keep the property, set it to `null`.
+
+### Modifying the state
+To modify the state, you can use the `setVars` method on the engine instance. This method takes a callback function that receives the current state and allows you to modify it. The changes made in this callback will be recorded in a new snapshot.
+
+To change specific properties:
+
+```typescript
+engine.setVars((state) => {
+	state.name = "Sheep";
+});
+```
+
+To directly set the state to a given object:
+
+```typescript
+engine.setVars(_=>{
+	return { name: "Sheep", inventory: { gems: 21 } }
+})
+```
+
+Do note that in the latter case, if the previous state was something similar to:
+
+```typescript
+{ name: "Dave", inventory: { gold: 123, gems: 12 }, others: { hoursPlayed: 1.5 } }
+```
+
+Top-level properties (e.g `others`) will still retain their values unless explicitly set to `null`
+
+Modifying the state will cause the engine to fire a custom `:stateChange` event that can be listened to via the `on()` method of the engine. This event contains the changed variables, both their previous, and now current values. For example, in the first example under this heading, the event will have `{ name: "Dave" }` and `{ name: "Sheep" }` as it's detail data.
+
+### State History
+
+Every possible state at each index in the history is a `moment`
+
+A getter `index` on the engine returns the current position in state history, where `0` represents the very beginning moment (i.e right after engine initialization). The methods, `forward(steps?: number)` and `backward(steps?: number)` can be used to move through the existing history, and have an optional argument (defaulting to `1`) that determines how many steps forward or backward to move to in the state history. Note that they do nothing if there is no future / past moment.
+
+Navigating to a new passage (which moves the index forward) whilist backwards in the state history, will overwrite whatever moment existed at that index.
+
 ## Custom Classes
 
-All custom classes that are stored in the story's state must conform to the type interfaces; `SugarBoxCompatibleClassInstance` and `SugarBoxCompatibleClassConstructor`, and also have the class constructor itself registered in the engine via `<engine instance>.registerClasses(Class1, Class2)`. This is so that they can be cloned and serialized.
+All custom classes that are stored in the story's state must conform to the type interfaces; `SugarBoxCompatibleClassInstance` and `SugarBoxCompatibleClassConstructor`, and also have the class constructor itself registered in the engine via `registerClasses(Class1, Class2, ..., ClassN)`. This is so that they can be cloned and serialized.
 
 ## Contributing
 
