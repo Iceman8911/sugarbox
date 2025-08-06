@@ -162,6 +162,13 @@ describe("State History", () => {
 });
 
 describe("Saving and Loading saves / save data", () => {
+	test.failing(
+		"loading an empty or invalid save slot should throw",
+		async () => {
+			await engine.loadFromSaveSlot(-999);
+		},
+	);
+
 	test("should be able to save and load the state restoring the relevant variable values", async () => {
 		await engine.saveToSaveSlot(1);
 
