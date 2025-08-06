@@ -97,26 +97,6 @@ beforeEach(async () => {
 });
 
 describe("Passage Navigation", () => {
-	test("story variables should be set without issue and persist after passage navigation", async () => {
-		engine.setVars((state) => {
-			state.player.name = "Bob";
-
-			state.player.inventory.gems++;
-
-			state.player.inventory.items.push("Overpowered Sword");
-		});
-
-		engine.navigateTo(SAMPLE_PASSAGES[0].name);
-
-		expect(
-			engine.vars.player.inventory.items.includes("Overpowered Sword"),
-		).toBeTrue();
-
-		expect(engine.vars.player.inventory.gems).toBe(13);
-
-		expect(engine.vars.player.name).toBe("Bob");
-	});
-
 	test("passage navigation should increment the index", async () => {
 		engine.navigateTo(SAMPLE_PASSAGES[0].name);
 
@@ -146,7 +126,39 @@ describe("Passage Navigation", () => {
 	});
 });
 
-describe("State History", () => {
+describe("State Variables and History", () => {
+	test("story variables should be set without issue and persist after passage navigation", async () => {
+		engine.setVars((state) => {
+			state.player.name = "Bob";
+
+			state.player.inventory.gems++;
+
+			state.player.inventory.items.push("Overpowered Sword");
+		});
+
+		engine.navigateTo(SAMPLE_PASSAGES[0].name);
+
+		expect(
+			engine.vars.player.inventory.items.includes("Overpowered Sword"),
+		).toBeTrue();
+
+		expect(engine.vars.player.inventory.gems).toBe(13);
+
+		expect(engine.vars.player.name).toBe("Bob");
+	});
+
+	test("replacing the story's state with a new object should work", () => {
+		const testObj = { others: { stage: -10 }, newProp: "I'm here now :D" };
+
+		engine.setVars((_) => {
+			return testObj;
+		});
+
+		expect(Object.values(engine.vars)).toContainEqual(
+			Object.values(testObj)[0],
+		);
+	});
+
 	test("the state history should not go beyond the given limit and older entries should be squashed together", async () => {
 		for (let i = 0; i < 1_000; i++) {
 			engine.navigateTo(

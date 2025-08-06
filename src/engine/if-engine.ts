@@ -243,9 +243,13 @@ class SugarboxEngine<
 	 *
 	 * Use this **solely** for setting values. If you must read a value, use `this.vars`
 	 *
-	 * Replacing the entire state (i.e state => state = {...}) is not currently supported and fails silently
+	 * **If you need to replace the entire state, *return a new object* (also make sure that undesirable properties are explicitly set to `null` else they'd still be included in the state) instead of directly *assigning the value***
 	 */
-	setVars(producer: (variables: State<TVariables>) => void): void {
+	setVars(
+		producer:
+			| ((variables: State<TVariables>) => void)
+			| ((variables: State<TVariables>) => State<TVariables>),
+	): void {
 		const self = this;
 
 		const snapshot = self.#getSnapshotAtIndex(self.#index);
@@ -276,7 +280,14 @@ class SugarboxEngine<
 		});
 
 		//@ts-expect-error <Missing properties will have their values thanks to the proxy but typescript can't know that>
-		producer(proxy);
+		const possibleValueToUseForReplacing = producer(proxy);
+
+		if (possibleValueToUseForReplacing) {
+			this.#stateSnapshots[self.#index] = {
+				...possibleValueToUseForReplacing,
+				__id: this.passageId,
+			};
+		}
 
 		// Get the changes and emit them
 		const newState = self.#getSnapshotAtIndex(self.#index);
