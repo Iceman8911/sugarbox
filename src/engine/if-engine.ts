@@ -242,6 +242,8 @@ class SugarboxEngine<
 	/** Immer-style way of updating story variables
 	 *
 	 * Use this **solely** for setting values. If you must read a value, use `this.vars`
+	 *
+	 * Replacing the entire state (i.e state => state = {...}) is not currently supported and fails silently
 	 */
 	setVars(producer: (variables: State<TVariables>) => void): void {
 		const self = this;
