@@ -180,6 +180,9 @@ class SugarboxEngine<
 		 * The first argument is the passage id */
 		otherPassages: SugarBoxPassage<TPassageType>[];
 
+		/** So you don't have to manually register classes for proper serialization / deserialization */
+		classes?: SugarBoxCompatibleClassConstructor<unknown, unknown>[];
+
 		/** Achievements that should persist across saves */
 		achievements?: TAchievementData;
 
@@ -193,6 +196,7 @@ class SugarboxEngine<
 			name,
 			startPassage,
 			otherPassages,
+			classes,
 			variables,
 			achievements = {} as TAchievementData,
 			settings = {} as TSettingsData,
@@ -212,6 +216,8 @@ class SugarboxEngine<
 			config,
 			otherPassages,
 		);
+
+		engine.registerClasses(...(classes ?? []));
 
 		const { loadOnStart } = config;
 

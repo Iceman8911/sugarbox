@@ -83,9 +83,8 @@ async function initEngine() {
 			maxStateCount: 100,
 			persistence: createPersistenceAdapter(),
 		},
+		classes: [Player],
 	});
-
-	engine.registerClasses(Player);
 
 	return engine;
 }
