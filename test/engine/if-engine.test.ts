@@ -171,6 +171,28 @@ describe("State Variables and History", () => {
 		// Since it's set to 100, the index cannot be more than 99
 		expect(engine.index).toBe(99);
 	});
+
+	test("the state should the correct when moving the index through history", () => {
+		engine.setVars((state) => {
+			state.others.stage = -1;
+		});
+
+		engine.navigateTo(SAMPLE_PASSAGES[0].name);
+
+		engine.setVars((state) => {
+			state.others.stage = 10;
+		});
+
+		engine.navigateTo(SAMPLE_PASSAGES[1].name);
+
+		engine.backward(2);
+
+		expect(engine.vars.others.stage).toBe(-1);
+
+		engine.forward(1);
+
+		expect(engine.vars.others.stage).toBe(10);
+	});
 });
 
 describe("Saving and Loading saves / save data", () => {
