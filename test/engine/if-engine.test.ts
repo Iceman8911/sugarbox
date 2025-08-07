@@ -68,9 +68,9 @@ async function initEngine() {
 		typeof Player
 	>;
 
-	const engine = await SugarboxEngine.init({
+	return SugarboxEngine.init({
 		name: "Test",
-		otherPassages: [...SAMPLE_PASSAGES],
+		otherPassages: [...SAMPLE_PASSAGES] as { name: string; passage: string }[],
 		startPassage: { name: "Start", passage: "This is the start passage" },
 		variables: {
 			player: new Player(),
@@ -85,8 +85,22 @@ async function initEngine() {
 		},
 		classes: [Player],
 	});
+}
 
-	return engine;
+async function initEngineWithPersistence(
+	persistence: ReturnType<typeof createPersistenceAdapter>,
+) {
+	// This is a simplified version of the main initEngine for test purposes
+	return SugarboxEngine.init({
+		name: "Test",
+		startPassage: { name: "Start", passage: "This is the start passage" },
+		config: {
+			persistence,
+		},
+		otherPassages: [],
+		variables: {},
+		achievements: {} as Record<string, unknown>,
+	});
 }
 
 let engine: ReturnType<typeof initEngine> extends Promise<infer T> ? T : never;
@@ -149,9 +163,7 @@ describe("State Variables and History", () => {
 	test("replacing the story's state with a new object should work", () => {
 		const testObj = { others: { stage: -10 }, newProp: "I'm here now :D" };
 
-		engine.setVars((_) => {
-			return testObj;
-		});
+		engine.setVars((_) => testObj);
 
 		expect(Object.values(engine.vars)).toContainEqual(
 			Object.values(testObj)[0],
@@ -166,12 +178,11 @@ describe("State Variables and History", () => {
 				],
 			);
 		}
-
 		// Since it's set to 100, the index cannot be more than 99
 		expect(engine.index).toBe(99);
 	});
 
-	test("the state should the correct when moving the index through history", () => {
+	test("the state should be correct when moving the index through history", () => {
 		engine.setVars((state) => {
 			state.others.stage = -1;
 		});
@@ -192,9 +203,25 @@ describe("State Variables and History", () => {
 
 		expect(engine.vars.others.stage).toBe(10);
 	});
+
+	test("backward and forward should be clamped within history bounds", () => {
+		engine.navigateTo(SAMPLE_PASSAGES[0].name);
+
+		engine.navigateTo(SAMPLE_PASSAGES[1].name);
+
+		expect(engine.index).toBe(2);
+
+		engine.forward(100); // Try to go too far forward
+
+		expect(engine.index).toBe(2);
+
+		engine.backward(100); // Try to go too far backward
+
+		expect(engine.index).toBe(0);
+	});
 });
 
-describe("Saving and Loading saves / save data", () => {
+describe("Saving and Loading", () => {
 	test.failing(
 		"loading an empty or invalid save slot should throw",
 		async () => {
@@ -229,6 +256,107 @@ describe("Saving and Loading saves / save data", () => {
 	});
 });
 
+describe("Advanced Saving and Loading", () => {
+	test("saveToExport and loadFromExport should work", async () => {
+		engine.setVars((s) => {
+			s.player.level = 99;
+		});
+
+		const exportedData = await engine.saveToExport();
+
+		expect(typeof exportedData).toBe("string");
+
+		engine.setVars((s) => {
+			s.player.level = 1;
+		});
+
+		expect(engine.vars.player.level).toBe(1);
+
+		await engine.loadFromExport(exportedData);
+
+		expect(engine.vars.player.level).toBe(99);
+	});
+
+	test("getSaves should return saved games", async () => {
+		await engine.saveToSaveSlot(1);
+
+		await engine.saveToSaveSlot(3);
+
+		const saves: Record<string, unknown>[] = [];
+
+		for await (const save of engine.getSaves()) {
+			if (save.type === "normal") {
+				saves.push(save);
+			}
+		}
+
+		expect(saves.length).toBe(2);
+
+		expect(saves.map((s) => s.slot)).toEqual([1, 3]);
+	});
+
+	test("loadRecentSave should load the most recent save", async () => {
+		engine.setVars((s) => {
+			s.others.stage = 1;
+		});
+
+		await engine.saveToSaveSlot(1);
+
+		await new Promise((r) => setTimeout(r, 10)); // ensure timestamp is different
+
+		engine.setVars((s) => {
+			s.others.stage = 2;
+		});
+
+		await engine.saveToSaveSlot(2);
+
+		engine.setVars((s) => {
+			s.others.stage = 3;
+		});
+
+		await engine.loadRecentSave();
+
+		expect(engine.vars.others.stage).toBe(2);
+	});
+
+	test("loadSaveFromData should load state from a save object", async () => {
+		engine.setVars((s) => {
+			s.player.name = "Initial Name";
+		});
+
+		await engine.saveToSaveSlot(1);
+
+		const saves = [];
+		for await (const save of engine.getSaves()) {
+			//@ts-expect-error I'll deal with the types later
+			saves.push(save.data);
+		}
+		const saveData = saves[0];
+
+		engine.setVars((s) => {
+			s.player.name = "New Name";
+		});
+
+		expect(engine.vars.player.name).toBe("New Name");
+
+		engine.loadSaveFromData(saveData);
+
+		expect(engine.vars.player.name).toBe("Initial Name");
+	});
+
+	test("saving to an invalid slot should throw", async () => {
+		let didThrow = false;
+
+		try {
+			await engine.saveToSaveSlot(-1);
+		} catch {
+			didThrow = true;
+		}
+
+		expect(didThrow).toBeTrue();
+	});
+});
+
 describe("Custom Classes", () => {
 	test("custom classes should still work after saving / loading", async () => {
 		await engine.saveToSaveSlot(1);
@@ -237,16 +365,56 @@ describe("Custom Classes", () => {
 
 		expect(engine.vars.player.favouriteItem()).toBe("Black Sword");
 	});
+
+	test("using unregistered class should not have its methods after load", async () => {
+		class Unregistered {
+			name = "unregistered";
+			iExist() {
+				return true;
+			}
+			__clone() {
+				const c = new Unregistered();
+				c.name = this.name;
+				return c;
+			}
+			__toJSON() {
+				return { name: this.name, __class_id: "Unregistered" };
+			}
+			static __fromJSON(data: { name: string }) {
+				const c = new Unregistered();
+
+				c.name = data.name;
+
+				return c;
+			}
+			static __classId = "Unregistered";
+		}
+
+		engine.setVars((s) => {
+			// @ts-expect-error
+			s.unregistered = new Unregistered();
+		});
+
+		await engine.saveToSaveSlot(1);
+
+		await engine.loadFromSaveSlot(1);
+
+		// @ts-expect-error
+		expect(engine.vars.unregistered).toBeDefined();
+
+		// It becomes a plain object, not an instance of Unregistered.
+		// @ts-expect-error
+		expect(typeof engine.vars.unregistered.iExist).toBe("undefined");
+	});
 });
 
 describe("Events", () => {
-	test("ensure events are emitted with the appropriate data and can be turned off", async () => {
+	test("ensure passage and state change events are emitted with the appropriate data and can be turned off", async () => {
 		// :passageChange event
 		let passageNavigatedData: null | {
 			newPassage: string;
 			oldPassage: string;
 		} = null;
-
 		const endListener = engine.on(
 			":passageChange",
 			({ detail: { newPassage, oldPassage } }) => {
@@ -265,8 +433,7 @@ describe("Events", () => {
 			SAMPLE_PASSAGES[0].passage,
 		);
 
-		// From this point no changes should be registered
-		endListener();
+		endListener(); // From this point no changes should be registered
 
 		engine.navigateTo(SAMPLE_PASSAGES[1].name);
 
@@ -300,16 +467,128 @@ describe("Events", () => {
 
 		expect(stateChangeCount).toBe(1);
 
-		// From this point no changes should be registered
-		endListener2();
+		endListener2(); // From this point no changes should be registered
 
 		engine.setVars((state) => {
 			state.others.stage = 1;
 		});
 
 		expect(stateChangeCount).not.toBe(2);
+	});
 
-		//@ts-ignore This expect keeps failing, since the state will still be changed via reference (?)
-		// expect(stateChangedData?.newState.others.stage).not.toBe(1);
+	test("should emit save and load events", async () => {
+		// Save events
+		let saveStartEvent: null | undefined;
+
+		let saveEndEvent:
+			| {
+					type: "success";
+			  }
+			| {
+					type: "error";
+					error: Error;
+			  }
+			| undefined;
+
+		const saveStartListener = engine.on(":saveStart", ({ detail }) => {
+			saveStartEvent = detail;
+		});
+
+		const saveEndListener = engine.on(":saveEnd", ({ detail }) => {
+			saveEndEvent = detail;
+		});
+
+		await engine.saveToSaveSlot(1);
+
+		expect(saveStartEvent).toBeNull();
+
+		expect(saveEndEvent).not.toBeUndefined();
+
+		saveStartListener();
+		saveEndListener();
+
+		// Load events
+		let loadStartEvent: null | undefined;
+
+		let loadEndEvent:
+			| {
+					type: "success";
+			  }
+			| {
+					type: "error";
+					error: Error;
+			  }
+			| undefined;
+
+		const loadStartListener = engine.on(":loadStart", ({ detail }) => {
+			loadStartEvent = detail;
+		});
+
+		const loadEndListener = engine.on(":loadEnd", ({ detail }) => {
+			loadEndEvent = detail;
+		});
+
+		await engine.loadFromSaveSlot(1);
+
+		expect(loadStartEvent).toBeNull();
+
+		expect(loadEndEvent).not.toBeUndefined();
+
+		loadStartListener();
+		loadEndListener();
 	});
 });
+
+describe("Passage Management", () => {
+	test("should add a single passage", async () => {
+		const newPassage = { name: "Cave", passage: "It's dark here." };
+
+		engine.addPassage(newPassage.name, newPassage.passage);
+		engine.navigateTo(newPassage.name);
+
+		expect(engine.passageId).toBe(newPassage.name);
+		expect(engine.passage).toBe(newPassage.passage);
+	});
+
+	test("should add multiple passages", async () => {
+		const newPassages = [
+			{ name: "Swamp", passage: "The air is thick and humid." },
+			{ name: "Castle", passage: "A large castle looms before you." },
+		];
+
+		engine.addPassages(newPassages);
+		engine.navigateTo(newPassages[1].name);
+
+		expect(engine.passageId).toBe(newPassages[1].name);
+		expect(engine.passage).toBe(newPassages[1].passage);
+	});
+});
+
+describe("Achievements and Settings", () => {
+	test("achievements should be settable and persist across sessions", async () => {
+		const persistence = createPersistenceAdapter();
+		const engine1 = await initEngineWithPersistence(persistence);
+
+		const achievements = { unlocked: ["First Quest"], points: 10 };
+
+		await engine1.setAchievements(() => achievements);
+		expect(engine1.achievements).toEqual(achievements);
+
+		const engine2 = await initEngineWithPersistence(persistence);
+		expect(engine2.achievements).toEqual(achievements);
+	});
+
+	test("settings should be settable and persist across sessions", async () => {
+		const persistence = createPersistenceAdapter();
+		const engine1 = await initEngineWithPersistence(persistence);
+
+		const settings = { volume: 0.5, difficulty: "hard" };
+		await engine1.setSettings((_) => settings);
+		expect(engine1.settings).toEqual(settings);
+
+		const engine2 = await initEngineWithPersistence(persistence);
+		expect(engine2.settings).toEqual(settings);
+	});
+});
+
+describe("Error Conditions and Edge Cases", () => {});
