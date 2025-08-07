@@ -1013,16 +1013,18 @@ class SugarboxEngine<
 			null,
 		);
 
+		const endEvent = operation === "save" ? ":saveEnd" : ":loadEnd";
+
 		try {
 			const result = await callback();
 
-			this.#emitCustomEvent(operation === "save" ? ":saveEnd" : ":loadEnd", {
+			this.#emitCustomEvent(endEvent, {
 				type: "success",
 			});
 
 			return result;
 		} catch (e) {
-			this.#emitCustomEvent(operation === "save" ? ":saveEnd" : ":loadEnd", {
+			this.#emitCustomEvent(endEvent, {
 				type: "error",
 				error: e instanceof Error ? e : new Error(String(e)),
 			});
