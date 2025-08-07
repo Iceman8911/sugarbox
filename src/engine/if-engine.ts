@@ -7,7 +7,7 @@
 
 import { parse, registerCustom, stringify } from "superjson";
 import type { ReadonlyDeep } from "type-fest";
-import type { CacheAdapter } from "../types/adapters";
+import type { SugarBoxCacheAdapter } from "../types/adapters";
 import type {
 	SugarBoxAchievementsKey,
 	SugarBoxAutoSaveKey,
@@ -124,7 +124,7 @@ class SugarboxEngine<
 	#passages = new Map<string, TPassageType>();
 
 	/** Since recalculating the current state can be expensive */
-	#stateCache?: CacheAdapter<number, StateWithMetadata<TVariables>>;
+	#stateCache?: SugarBoxCacheAdapter<number, StateWithMetadata<TVariables>>;
 
 	#eventTarget = new EventTarget();
 

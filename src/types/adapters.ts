@@ -21,4 +21,7 @@ type PersistenceAdapter<TKey, TData> = {
 	keys?(): Promise<Iterable<TKey>>;
 };
 
-export type { CacheAdapter, PersistenceAdapter };
+export type {
+	CacheAdapter as SugarBoxCacheAdapter,
+	PersistenceAdapter as SugarBoxPersistenceAdapter,
+};

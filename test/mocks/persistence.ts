@@ -1,14 +1,14 @@
 import { mock } from "bun:test";
-import type { PersistenceAdapter } from "../../src/types/adapters";
+import type { SugarBoxPersistenceAdapter } from "../../src/types/adapters";
 import type { SugarBoxAnyKey } from "../../src/types/if-engine";
 
-const createPersistenceAdapter: () => PersistenceAdapter<
+const createPersistenceAdapter: () => SugarBoxPersistenceAdapter<
 	SugarBoxAnyKey,
 	string
 > = mock(() => {
 	const store = new Map<SugarBoxAnyKey, string>();
 
-	const adapter: PersistenceAdapter<SugarBoxAnyKey, string> = {
+	const adapter: SugarBoxPersistenceAdapter<SugarBoxAnyKey, string> = {
 		async get(key) {
 			return store.get(key);
 		},

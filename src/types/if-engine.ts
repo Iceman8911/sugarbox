@@ -1,4 +1,7 @@
-import type { CacheAdapter, PersistenceAdapter } from "./adapters";
+import type {
+	SugarBoxCacheAdapter,
+	SugarBoxPersistenceAdapter,
+} from "./adapters";
 
 type SugarBoxVariables<
 	TStructure extends Record<string, unknown> = Record<string, unknown>,
@@ -117,13 +120,13 @@ type SugarBoxConfig<
 	loadOnStart: boolean;
 
 	/** Optional cache adapter to use to speed up state fetching */
-	cache?: CacheAdapter<
+	cache?: SugarBoxCacheAdapter<
 		number,
 		SugarBoxVariables<TStructure> & SugarBoxMetadata
 	>;
 
 	/** Optional persistence adapter for saving support */
-	persistence?: PersistenceAdapter<SugarBoxAnyKey, string>;
+	persistence?: SugarBoxPersistenceAdapter<SugarBoxAnyKey, string>;
 };
 
 type SugarBoxPassage<TPassageType> = {
