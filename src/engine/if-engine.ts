@@ -6,6 +6,7 @@
 // - The current state snapshot is the last state in the list, which is mutable.
 
 import { parse, registerCustom, stringify } from "superjson";
+import type { ReadonlyDeep } from "type-fest";
 import type { CacheAdapter } from "../types/adapters";
 import type {
 	SugarBoxAchievementsKey,
@@ -24,6 +25,7 @@ import type {
 	SugarBoxCompatibleClassInstance,
 } from "../types/userland-classes";
 import { clone } from "../utils/clone";
+import { makeImmutable } from "../utils/mutability";
 
 const defaultConfig = {
 	autoSave: false,
@@ -58,20 +60,20 @@ type Config<TState extends Record<string, unknown>> = Partial<
 
 /** Events fired from a `SugarBoxEngine` instance */
 type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
-	":passageChange": Readonly<{
+	":passageChange": ReadonlyDeep<{
 		/** The previous passage before the transition */
-		oldPassage: Readonly<TPassageData> | null;
+		oldPassage: TPassageData | null;
 
 		/** The new passage after the transition */
-		newPassage: Readonly<TPassageData> | null;
+		newPassage: TPassageData | null;
 	}>;
 
-	":stateChange": Readonly<{
+	":stateChange": ReadonlyDeep<{
 		/** The previous snapshot of only variables (to be changed) before the change */
-		oldState: Readonly<TPartialSnapshot>;
+		oldState: TPartialSnapshot;
 
 		/** A collection of only the changed variables after the change */
-		newState: Readonly<TPartialSnapshot>;
+		newState: TPartialSnapshot;
 	}>;
 
 	":init": null;
@@ -90,7 +92,7 @@ type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
  * Dispatches custom events that can be listened to with "addEventListener"
  */
 class SugarboxEngine<
-	TPassageType extends string | object,
+	TPassageType,
 	TVariables extends Record<string, unknown> = Record<string, unknown>,
 	TAchievementData extends Record<string, unknown> = Record<string, boolean>,
 	TSettingsData extends Record<string, unknown> = Record<string, unknown>,
@@ -317,8 +319,8 @@ class SugarboxEngine<
 		}
 
 		self.#emitCustomEvent(":stateChange", {
-			newState,
-			oldState,
+			newState: makeImmutable(newState),
+			oldState: makeImmutable(newState),
 		});
 
 		// Clear the cache entry for this since it has been changed
@@ -817,13 +819,13 @@ class SugarboxEngine<
 
 		// Emit the events for passage and state changes
 		this.#emitCustomEvent(":passageChange", {
-			newPassage: this.passage,
-			oldPassage,
+			newPassage: makeImmutable(this.passage),
+			oldPassage: makeImmutable(oldPassage),
 		});
 
 		this.#emitCustomEvent(":stateChange", {
-			newState: this.#getSnapshotAtIndex(this.#index),
-			oldState: oldSnapshot,
+			newState: makeImmutable(this.#getSnapshotAtIndex(this.#index)),
+			oldState: makeImmutable(oldSnapshot),
 		});
 	}
 
