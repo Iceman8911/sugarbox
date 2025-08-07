@@ -92,7 +92,7 @@ type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 class SugarboxEngine<
 	TPassageType extends string | object,
 	TVariables extends Record<string, unknown> = Record<string, unknown>,
-	TAchievementData extends Record<string, boolean> = Record<string, boolean>,
+	TAchievementData extends Record<string, unknown> = Record<string, boolean>,
 	TSettingsData extends Record<string, unknown> = Record<string, unknown>,
 > {
 	/** Contains partial updates to the state as a result of moving forwards in the story.
@@ -126,7 +126,7 @@ class SugarboxEngine<
 
 	#eventTarget = new EventTarget();
 
-	/** Boolean flags that denote achievements meant to be persisted across saves */
+	/** Achievements meant to be persisted across saves */
 	#achievements: TAchievementData;
 
 	/** Settings data that is not tied to save data, like audio volume, font size, etc
@@ -174,7 +174,7 @@ class SugarboxEngine<
 	static async init<
 		TPassageType extends string | object,
 		TVariables extends Record<string, unknown> = Record<string, unknown>,
-		TAchievementData extends Record<string, boolean> = Record<string, boolean>,
+		TAchievementData extends Record<string, unknown> = Record<string, boolean>,
 		TSettingsData extends Record<string, unknown> = Record<string, unknown>,
 	>(args: {
 		name: string;
@@ -198,7 +198,9 @@ class SugarboxEngine<
 		settings?: TSettingsData;
 
 		config?: Config<TVariables>;
-	}): Promise<SugarboxEngine<TPassageType, TVariables>> {
+	}): Promise<
+		SugarboxEngine<TPassageType, TVariables, TAchievementData, TSettingsData>
+	> {
 		const {
 			config = defaultConfig,
 			name,
@@ -322,6 +324,8 @@ class SugarboxEngine<
 		// Clear the cache entry for this since it has been changed
 		self.#stateCache?.delete(self.#index);
 	}
+
+	// TODO: resetVars()
 
 	/** Returns the id to the appropriate passage for the current state */
 	get passageId(): string {

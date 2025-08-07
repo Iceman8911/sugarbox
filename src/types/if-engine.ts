@@ -70,7 +70,7 @@ type SugarBoxSaveData<
 type SugarBoxExportData<
 	TSaveData extends Record<string, unknown> = Record<string, unknown>,
 	TSettingsData extends Record<string, unknown> = Record<string, unknown>,
-	TAchievementData extends Record<string, boolean> = Record<string, boolean>,
+	TAchievementData extends Record<string, unknown> = Record<string, boolean>,
 > = {
 	saveData: SugarBoxSaveData<TSaveData>;
 
