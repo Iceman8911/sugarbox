@@ -545,7 +545,7 @@ class SugarboxEngine<
 	 * @throws if the persistence adapter is not available
 	 */
 	async saveToSaveSlot(saveSlot?: number): Promise<void> {
-		this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
+		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
 			"save",
 			async () => {
 				const { persistence } = this.#config;
@@ -637,6 +637,21 @@ class SugarboxEngine<
 				yield { type: "normal", slot: slotNumber, data: saveData };
 			}
 		}
+	}
+
+	async loadRecentSave(): Promise<void> {
+		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
+			"load",
+			async () => {
+				const mostRecentSave = await this.#getMostRecentSave();
+
+				if (!mostRecentSave) {
+					throw new Error("No saves found");
+				}
+
+				this.loadSaveFromData(mostRecentSave);
+			},
+		);
 	}
 
 	/** For saves the need to exported out of the browser */
