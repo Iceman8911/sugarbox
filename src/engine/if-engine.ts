@@ -1333,36 +1333,6 @@ class SugarboxEngine<
 	get #currentStatePrng(): PRNG {
 		return this.#getPrngFromSeed(this.#varsWithMetadata.__seed);
 	}
-
-	/** For testing purposes.
-	 *
-	 * It's only populated in development mode.
-	 */
-	get __testAPI(): {
-		mergeSnapshots: (lowerIndex: number, upperIndex: number) => void;
-		getSnapshotAtIndex: (index: number) => SnapshotWithMetadata<TVariables>;
-		getStateAtIndex: (
-			index?: number,
-		) => Readonly<StateWithMetadata<TVariables>>;
-		addNewSnapshot: () => SnapshotWithMetadata<TVariables>;
-		setIndex: (val: number) => void;
-		snapshots: Array<SnapshotWithMetadata<TVariables>>;
-		initialState: Readonly<StateWithMetadata<TVariables>>;
-	} | null {
-		if (process.env.NODE_ENV !== "production") {
-			return {
-				mergeSnapshots: this.#mergeSnapshots.bind(this),
-				getSnapshotAtIndex: this.#getSnapshotAtIndex.bind(this),
-				getStateAtIndex: this.#getStateAtIndex.bind(this),
-				addNewSnapshot: this.#addNewSnapshot.bind(this),
-				setIndex: this.#setIndex.bind(this),
-				snapshots: this.#stateSnapshots,
-				initialState: this.#initialState,
-			};
-		}
-
-		return null;
-	}
 }
 
 export { SugarboxEngine };
