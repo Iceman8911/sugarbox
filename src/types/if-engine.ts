@@ -11,6 +11,12 @@ type SugarBoxVariables<
 type SugarBoxMetadata = {
 	/** Passage ID for the state snapshot */
 	__id: string;
+
+	/** Current seed of the state at the moment.
+	 *
+	 * **Is a number between 0 and 2^32 - 1 (inclusive).**
+	 */
+	__seed: number;
 };
 
 /** Keys used for indexing save data
@@ -118,6 +124,26 @@ type SugarBoxConfig<
 	 * @default true
 	 */
 	loadOnStart: boolean;
+
+	/** Intial seed for predictable rng.
+	 *
+	 * **Must be a number between 0 and 2^32 - 1 (inclusive).**
+	 *
+	 * @default a random number between 0 and 2^32 - 1
+	 */
+	initialSeed?: number;
+
+	/** Determines if and when the prng seed will be regenerated.
+	 *
+	 * If set to `passage`, the seed will be regenerated on every passage navigation.
+	 *
+	 * If set to `eachCall`, the seed will be regenerated on every call to the `random` getter.
+	 *
+	 * If set to `false`, the seed will not be regenerated at all. Essentially, the engine will use the initial seed for all random number generation.
+	 *
+	 * @default "passage"
+	 */
+	regenSeed: "passage" | "eachCall" | false;
 
 	/** Optional cache adapter to use to speed up state fetching */
 	cache?: SugarBoxCacheAdapter<

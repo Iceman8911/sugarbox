@@ -591,4 +591,268 @@ describe("Achievements and Settings", () => {
 	});
 });
 
+describe("PRNG and Random Number Generation", () => {
+	test("should generate deterministic random numbers with fixed seed", async () => {
+		const fixedSeed = 12345;
+		const engine1 = await SugarboxEngine.init({
+			name: "Test1",
+			startPassage: { name: "Start", passage: "Start passage" },
+			variables: {},
+			config: {
+				initialSeed: fixedSeed,
+				regenSeed: false, // Never regenerate seed
+			},
+			otherPassages: [],
+		});
+
+		const engine2 = await SugarboxEngine.init({
+			name: "Test2",
+			startPassage: { name: "Start", passage: "Start passage" },
+			variables: {},
+			config: {
+				initialSeed: fixedSeed,
+				regenSeed: false, // Never regenerate seed
+			},
+			otherPassages: [],
+		});
+
+		// Both engines should generate the same sequence
+		const sequence1: number[] = [];
+		const sequence2: number[] = [];
+
+		for (let i = 0; i < 10; i++) {
+			sequence1.push(engine1.random);
+			sequence2.push(engine2.random);
+		}
+
+		expect(sequence1).toEqual(sequence2);
+	});
+
+	test("should generate different sequences when regenSeed is false vs true", async () => {
+		const fixedSeed = 54321;
+
+		const engineNoRegen = await SugarboxEngine.init({
+			name: "NoRegen",
+			startPassage: { name: "Start", passage: "Start passage" },
+			variables: {},
+			config: {
+				initialSeed: fixedSeed,
+				regenSeed: false,
+			},
+			otherPassages: [],
+		});
+
+		const engineWithRegen = await SugarboxEngine.init({
+			name: "WithRegen",
+			startPassage: { name: "Start", passage: "Start passage" },
+			variables: {},
+			config: {
+				initialSeed: fixedSeed,
+				regenSeed: "passage",
+			},
+			otherPassages: [{ name: "Next", passage: "Next passage" }],
+		});
+
+		// Get initial random numbers
+		const noRegenFirst = engineNoRegen.random;
+		const withRegenFirst = engineWithRegen.random;
+
+		// Navigate to new passage (only affects withRegen engine)
+		engineWithRegen.navigateTo("Next");
+
+		// Get second random numbers
+		const noRegenSecond = engineNoRegen.random;
+		const withRegenSecond = engineWithRegen.random;
+
+		// The sequences should be different due to seed regeneration
+		expect(noRegenSecond).not.toBe(withRegenSecond);
+	});
+
+	test("should regenerate seed on passage navigation when regenSeed is 'passage'", async () => {
+		const engine = await SugarboxEngine.init({
+			name: "PassageRegen",
+			startPassage: { name: "Start", passage: "Start passage" },
+			variables: {},
+			config: {
+				initialSeed: 98765,
+				regenSeed: "passage",
+			},
+			otherPassages: [
+				{ name: "Passage1", passage: "First passage" },
+				{ name: "Passage2", passage: "Second passage" },
+			],
+		});
+
+		const initialRandom = engine.random;
+
+		engine.navigateTo("Passage1");
+		const afterFirstNav = engine.random;
+
+		engine.navigateTo("Passage2");
+		const afterSecondNav = engine.random;
+
+		// Each navigation should change the seed, affecting subsequent randoms
+		expect(initialRandom).not.toBe(afterFirstNav);
+		expect(afterFirstNav).not.toBe(afterSecondNav);
+	});
+
+	test("should regenerate seed on each call when regenSeed is 'eachCall'", async () => {
+		const engine = await SugarboxEngine.init({
+			name: "EachCallRegen",
+			startPassage: { name: "Start", passage: "Start passage" },
+			variables: {},
+			config: {
+				initialSeed: 11111,
+				regenSeed: "eachCall",
+			},
+			otherPassages: [],
+		});
+
+		// Generate multiple random numbers
+		const randoms: number[] = [];
+		for (let i = 0; i < 5; i++) {
+			randoms.push(engine.random);
+		}
+
+		// All should be different (extremely unlikely to get duplicates)
+		const uniqueValues = new Set(randoms);
+		expect(uniqueValues.size).toBe(randoms.length);
+	});
+
+	test("should preserve random state across save/load with regenSeed false", async () => {
+		const persistence = createPersistenceAdapter();
+		const engine = await SugarboxEngine.init({
+			name: "SaveLoadRandom",
+			startPassage: { name: "Start", passage: "Start passage" },
+			variables: {},
+			config: {
+				initialSeed: 99999,
+				regenSeed: false,
+				persistence,
+			},
+			otherPassages: [],
+		});
+
+		// Generate some random numbers to advance the state
+		const beforeSave: number[] = [];
+		for (let i = 0; i < 3; i++) {
+			beforeSave.push(engine.random);
+		}
+
+		// Save the current state
+		await engine.saveToSaveSlot(1);
+
+		// Generate more random numbers
+		const afterSave: number[] = [];
+		for (let i = 0; i < 3; i++) {
+			afterSave.push(engine.random);
+		}
+
+		// Load the saved state
+		await engine.loadFromSaveSlot(1);
+
+		// Generate the same number of randoms as after save
+		const afterLoad: number[] = [];
+		for (let i = 0; i < 3; i++) {
+			afterLoad.push(engine.random);
+		}
+
+		// After loading, we should get the same sequence as after save
+		expect(afterLoad).toEqual(afterSave);
+	});
+
+	test("should maintain seed state when navigating through history", async () => {
+		const engine = await SugarboxEngine.init({
+			name: "HistoryRandom",
+			startPassage: { name: "Start", passage: "Start passage" },
+			variables: {},
+			config: {
+				initialSeed: 77777,
+				regenSeed: "passage",
+			},
+			otherPassages: [
+				{ name: "Passage1", passage: "First passage" },
+				{ name: "Passage2", passage: "Second passage" },
+			],
+		});
+
+		// Navigate and collect random numbers at each step
+		const startRandom = engine.random;
+
+		engine.navigateTo("Passage1");
+		const passage1Random = engine.random;
+
+		engine.navigateTo("Passage2");
+		const passage2Random = engine.random;
+
+		// Go back in history
+		engine.backward(2); // Back to start
+		const backToStartRandom = engine.random;
+
+		engine.forward(1); // Forward to Passage1
+		const backToPassage1Random = engine.random;
+
+		// Random numbers should be consistent when revisiting states
+		expect(backToStartRandom).toBe(startRandom);
+		expect(backToPassage1Random).toBe(passage1Random);
+	});
+
+	test("should generate numbers in expected range", async () => {
+		const engine = await SugarboxEngine.init({
+			name: "RangeTest",
+			startPassage: { name: "Start", passage: "Start passage" },
+			variables: {},
+			config: {
+				initialSeed: 55555,
+			},
+			otherPassages: [],
+		});
+
+		// Generate many random numbers and verify they're all in [0, 1) range
+		for (let i = 0; i < 100; i++) {
+			const random = engine.random;
+			expect(random).toBeGreaterThanOrEqual(0);
+			expect(random).toBeLessThan(1);
+		}
+	});
+
+	test("should export and import random state correctly", async () => {
+		const engine = await SugarboxEngine.init({
+			name: "ExportImportRandom",
+			startPassage: { name: "Start", passage: "Start passage" },
+			variables: {},
+			config: {
+				initialSeed: 33333,
+				regenSeed: false,
+			},
+			otherPassages: [],
+		});
+
+		// Generate some randoms to advance state
+		engine.random;
+		engine.random;
+
+		// Export the state
+		const exportData = await engine.saveToExport();
+
+		// Generate more randoms
+		const afterExport: number[] = [];
+		for (let i = 0; i < 3; i++) {
+			afterExport.push(engine.random);
+		}
+
+		// Import the exported state
+		await engine.loadFromExport(exportData);
+
+		// Generate the same number of randoms
+		const afterImport: number[] = [];
+		for (let i = 0; i < 3; i++) {
+			afterImport.push(engine.random);
+		}
+
+		// Should get the same sequence
+		expect(afterImport).toEqual(afterExport);
+	});
+});
+
 describe("Error Conditions and Edge Cases", () => {});

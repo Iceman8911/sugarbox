@@ -5,6 +5,7 @@
 // - A partial update only contains changes to the state, not the entire state.
 // - The current state snapshot is the last state in the list, which is mutable.
 
+import { PRNG } from "@iceman8911/tiny-prng";
 import { parse, registerCustom, stringify } from "superjson";
 import type { ReadonlyDeep } from "type-fest";
 import type { SugarBoxCacheAdapter } from "../types/adapters";
@@ -33,6 +34,8 @@ const defaultConfig = {
 	loadOnStart: true,
 
 	maxStateCount: 100,
+
+	regenSeed: "passage",
 
 	stateMergeCount: 1,
 
@@ -147,8 +150,18 @@ class SugarboxEngine<
 		config: Config<TVariables>,
 		otherPassages: SugarBoxPassage<TPassageType>[],
 	) {
+		const {
+			cache,
+			saveSlots,
+			initialSeed = Math.floor(Math.random() * 2 ** 32),
+		} = config;
+
 		/** Initialize the state with the provided initial state */
-		this.#initialState = { ...initialState, __id: startPassage.name };
+		this.#initialState = {
+			...initialState,
+			__id: startPassage.name,
+			__seed: initialSeed,
+		};
 
 		this.#stateSnapshots = [{}];
 
@@ -157,8 +170,6 @@ class SugarboxEngine<
 		this.#achievements = achievements;
 
 		this.#settings = settings;
-
-		const { cache, saveSlots } = config;
 
 		if (saveSlots && saveSlots < MINIMUM_SAVE_SLOTS)
 			throw new Error(`Invalid number of save slots: ${saveSlots}`);
@@ -304,6 +315,7 @@ class SugarboxEngine<
 			this.#stateSnapshots[self.#index] = {
 				...possibleValueToUseForReplacing,
 				__id: this.passageId,
+				__seed: this.#currentStatePrngSeed,
 			};
 		}
 
@@ -350,6 +362,24 @@ class SugarboxEngine<
 	 */
 	get index(): number {
 		return this.#index;
+	}
+
+	/** Based off an internal PRNG, returns a random float between 0 and 1, inclusively */
+	get random(): number {
+		const { regenSeed } = this.#config;
+
+		const prng = this.#currentStatePrng;
+
+		// This will alter `prng.seed`
+		const randomNumber = prng.nextFloat();
+
+		if (regenSeed === "eachCall") {
+			// Add the new seed to the snapshot on each call
+			// @ts-expect-error - At the moment, there's no way to enforce that TVariables should not have a `__seed` property
+			this.#getSnapshotAtIndex(this.#index).__seed = prng.seed;
+		}
+
+		return randomNumber;
 	}
 
 	get achievements(): Readonly<TAchievementData> {
@@ -460,8 +490,14 @@ class SugarboxEngine<
 		const newSnapshot = this.#addNewSnapshot();
 
 		if (this.#varsWithMetadata.__id !== passageId) {
-			//@ts-expect-error - At the moment, there's no way to enforce that TVariables should not have a `_id` property
+			//@ts-expect-error - At the moment, there's no way to enforce that TVariables should not have a `__id` property
 			newSnapshot.__id = passageId;
+		}
+
+		if (this.#config.regenSeed === "passage") {
+			//@ts-expect-error - At the moment, there's no way to enforce that TVariables should not have a `__seed` property
+			// Create a new seed for the new snapshot
+			newSnapshot.__seed = this.#currentStatePrng.next();
 		}
 
 		this.#setIndex(this.#index + 1);
@@ -927,6 +963,11 @@ class SugarboxEngine<
 		return possibleSnapshot;
 	}
 
+	/**
+	 *
+	 * @param index - The index at which the state will be calculated. Defaults to the most recent snapshot's index
+	 * @returns
+	 */
 	#getStateAtIndex(
 		index: number = this.#lastSnapshotIndex,
 	): Readonly<StateWithMetadata<TVariables>> {
@@ -1098,6 +1139,19 @@ class SugarboxEngine<
 		if (serializedSettings) {
 			this.#settings = JSON.parse(serializedSettings);
 		}
+	}
+
+	get #currentStatePrngSeed(): number {
+		return this.#varsWithMetadata.__seed;
+	}
+
+	/** Since the seed is stored in each snapshot and reinitializing the class isn't expensive, there's not much use in having a dedicated prng prop */
+	#getPrngFromSeed(seed: number): PRNG {
+		return new PRNG(seed);
+	}
+
+	get #currentStatePrng(): PRNG {
+		return this.#getPrngFromSeed(this.#varsWithMetadata.__seed);
 	}
 
 	/** For testing purposes.
