@@ -774,7 +774,7 @@ class SugarboxEngine<
 
 						if (!migratorData) {
 							throw new Error(
-								`No migrator function found for save version ${saveToMigrateVersionString()}`,
+								`No migrator function found for save version ${saveToMigrateVersionString()}. Required to migrate to engine version ${engineVersion}.`,
 							);
 						}
 
