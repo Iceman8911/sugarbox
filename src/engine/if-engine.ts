@@ -258,6 +258,15 @@ class SugarboxEngine<
 		settings?: TSettingsData;
 
 		config?: Config<TVariables>;
+
+		/** If the engine had been intialised before with a lower version.
+		 *
+		 * Add migrations to this array to migrate the old save data to the new version.
+		 */
+		migrations?: {
+			from: SugarBoxSemanticVersion;
+			data: SugarBoxSaveMigration<never, unknown>;
+		}[];
 	}): Promise<
 		SugarboxEngine<TPassageType, TVariables, TAchievementData, TSettingsData>
 	> {
@@ -267,6 +276,7 @@ class SugarboxEngine<
 			startPassage,
 			otherPassages,
 			classes,
+			migrations,
 			variables,
 			achievements = {} as TAchievementData,
 			settings = {} as TSettingsData,
@@ -288,6 +298,8 @@ class SugarboxEngine<
 		);
 
 		engine.registerClasses(...(classes ?? []));
+
+		engine.registerMigrators(...(migrations ?? []));
 
 		const { loadOnStart } = config;
 
