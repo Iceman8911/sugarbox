@@ -27,6 +27,11 @@ import type {
 } from "../types/userland-classes";
 import { clone } from "../utils/clone";
 import { makeImmutable } from "../utils/mutability";
+import {
+	isSaveCompatibleWithEngine,
+	SugarBoxSemanticVersion,
+	type SugarBoxSemanticVersionString,
+} from "../utils/version";
 
 const defaultConfig = {
 	autoSave: false,
@@ -39,7 +44,11 @@ const defaultConfig = {
 
 	stateMergeCount: 1,
 
+	saveCompatibilityMode: "strict",
+
 	saveSlots: 20,
+
+	saveVersion: new SugarBoxSemanticVersion(0, 0, 1),
 } as const satisfies SugarBoxConfig;
 
 const MINIMUM_SAVE_SLOT_INDEX = 0;
@@ -89,6 +98,31 @@ type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 
 	":loadEnd": { type: "success" } | { type: "error"; error: Error };
 };
+
+type SugarBoxSaveMigration<
+	TOldSaveStructure,
+	TNewSaveStructure,
+	TNewVersion extends
+		SugarBoxSemanticVersionString = SugarBoxSemanticVersionString,
+> = {
+	/** Version that the save will be set to if the migration function works */
+	to: TNewVersion;
+
+	/** Function to be run on the old save data to migrate it to the given version */
+	migrater: (saveDataToMigrate: TOldSaveStructure) => TNewSaveStructure;
+};
+
+type SugarBoxSaveMigrationMap<
+	TOldSaveStructure,
+	TNewSaveStructure,
+	TOldVersion extends
+		SugarBoxSemanticVersionString = SugarBoxSemanticVersionString,
+	TNewVersion extends
+		SugarBoxSemanticVersionString = SugarBoxSemanticVersionString,
+> = Map<
+	TOldVersion,
+	SugarBoxSaveMigration<TOldSaveStructure, TNewSaveStructure, TNewVersion>
+>;
 
 /** The main engine for Sugarbox that provides headless interface to basic utilities required for Interactive Fiction
  *
@@ -140,6 +174,13 @@ class SugarboxEngine<
 	 */
 	#settings: TSettingsData;
 
+	/** Collection of migration functions to keep old saves up to date
+	 *
+	 * Not sure what types to put here without overcomplicating things
+	 */
+	// biome-ignore lint/suspicious/noExplicitAny: <It'll not be worth defining the types for these>
+	#saveMigrationMap: SugarBoxSaveMigrationMap<any, any> = new Map();
+
 	private constructor(
 		/** Must be unique to prevent conflicts */
 		readonly name: string,
@@ -181,6 +222,9 @@ class SugarboxEngine<
 		if (cache) {
 			this.#stateCache = cache;
 		}
+
+		// Register the Semantic Version class so it can be used in the state
+		this.registerClasses(SugarBoxSemanticVersion);
 	}
 
 	/** Use this to initialize the engine */
@@ -576,6 +620,29 @@ class SugarboxEngine<
 		});
 	}
 
+	/** Use this to register custom callbacks for migrating outdated save data
+	 *
+	 * @throws if a migration for the same version already exists
+	 */
+	registerMigrators<TOldSaveStructure, TNewSaveStructure = State<TVariables>>(
+		...migrators: {
+			from: SugarBoxSemanticVersion;
+			data: SugarBoxSaveMigration<TOldSaveStructure, TNewSaveStructure>;
+		}[]
+	): void {
+		for (const { from, data } of migrators) {
+			const semanticVersionString = from.toString();
+
+			if (this.#saveMigrationMap.has(semanticVersionString)) {
+				throw new Error(
+					`A migration for version ${from} already exists. Cannot register multiple migrations for the same version.`,
+				);
+			}
+
+			this.#saveMigrationMap.set(semanticVersionString, data);
+		}
+	}
+
 	/** Using the provided persistence adapter, this saves all vital data for the combined state, metadata, and current index
 	 *
 	 * @param saveSlot if not provided, defaults to the autosave slot
@@ -586,7 +653,7 @@ class SugarboxEngine<
 		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
 			"save",
 			async () => {
-				const { persistence } = this.#config;
+				const { persistence, saveVersion } = this.#config;
 
 				SugarboxEngine.#assertPersistenceIsAvailable(persistence);
 
@@ -596,6 +663,7 @@ class SugarboxEngine<
 					intialState: this.#initialState,
 					lastPassageId: this.passageId,
 					savedOn: new Date(),
+					saveVersion,
 					snapshots: this.#stateSnapshots,
 					storyIndex: this.#index,
 				};
@@ -637,15 +705,102 @@ class SugarboxEngine<
 	 * This is used to load saves from the `getSaves()` method.
 	 *
 	 * @param save The save data to load
+	 *
+	 * @throws if the save was made on a later version than the engine or if a save migration throws
 	 */
 	loadSaveFromData(save: SugarBoxSaveData<TVariables>): void {
-		const { intialState, snapshots, storyIndex }: SugarBoxSaveData<TVariables> =
-			save;
+		const {
+			intialState,
+			snapshots,
+			storyIndex,
+			saveVersion,
+		}: SugarBoxSaveData<TVariables> = save;
 
-		// Replace the current state
-		this.#initialState = intialState;
-		this.#stateSnapshots = snapshots;
-		this.#index = storyIndex;
+		const { saveCompatibilityMode, saveVersion: engineVersion } = this.#config;
+
+		const saveCompatibility = isSaveCompatibleWithEngine(
+			saveVersion,
+			engineVersion,
+			saveCompatibilityMode,
+		);
+
+		switch (saveCompatibility) {
+			case "compatible": {
+				// Replace the current state
+				this.#initialState = intialState;
+				this.#stateSnapshots = snapshots;
+				this.#index = storyIndex;
+
+				break;
+			}
+
+			case "outdatedSave": {
+				// Temporarily replace the current state
+				const originalInitialState = this.#initialState;
+				const originalStateSnapshots = this.#stateSnapshots;
+				const originalIndex = this.#index;
+
+				this.#initialState = intialState;
+				this.#stateSnapshots = snapshots;
+				this.#index = storyIndex;
+
+				try {
+					let saveToMigrateVersion = saveVersion;
+
+					const saveToMigrateVersionString = () =>
+						saveToMigrateVersion.toString();
+
+					let migratedState: StateWithMetadata<TVariables> | null = null;
+
+					while (saveToMigrateVersionString() !== engineVersion.toString()) {
+						const migratorData = this.#saveMigrationMap.get(
+							saveToMigrateVersionString(),
+						);
+
+						if (!migratorData) {
+							throw new Error(
+								`No migrator function found for save version ${saveToMigrateVersionString()}`,
+							);
+						}
+
+						const { migrater, to } = migratorData;
+
+						const currentStateToMigrate =
+							migratedState ?? this.#varsWithMetadata;
+
+						// This may throw
+						migratedState = migrater(currentStateToMigrate);
+
+						saveToMigrateVersion = SugarBoxSemanticVersion.__fromJSON(to);
+					}
+
+					// Save migration completed successfully so store it in the new snapshot
+					// TODO: Make a method for completely replacing the state
+					if (migratedState) {
+						this.#stateSnapshots[this.#index] = migratedState;
+
+						break;
+					}
+
+					throw new Error(
+						`Save with version ${saveToMigrateVersion} returned null during migration`,
+					);
+				} catch (e) {
+					// Reset any changes since the migration failed
+					this.#initialState = originalInitialState;
+					this.#stateSnapshots = originalStateSnapshots;
+					this.#index = originalIndex;
+
+					// Rethrow
+					throw new Error(e instanceof Error ? e.message : String(e));
+				}
+			}
+			case "newerSave": {
+				throw new Error(
+					`Save with version ${saveVersion} is too new for the engine with version ${engineVersion}`,
+				);
+			}
+		}
 
 		// Clear the state cache since the state has changed
 		this.#stateCache?.clear();
@@ -705,6 +860,7 @@ class SugarboxEngine<
 					saveData: {
 						intialState: this.#initialState,
 						lastPassageId: this.passageId,
+						saveVersion: this.#config.saveVersion,
 						savedOn: new Date(),
 						snapshots: this.#stateSnapshots,
 						storyIndex: this.#index,

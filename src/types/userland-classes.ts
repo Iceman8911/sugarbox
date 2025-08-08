@@ -17,7 +17,8 @@ type SugarBoxCompatibleClassInstance<TClassInstance, TSerializedStructure> = {
 type SugarBoxCompatibleClassConstructor<TClassInstance, TSerializedStructure> =
 	{
 		new (
-			...args: unknown[]
+			// biome-ignore lint/suspicious/noExplicitAny: <Allow any constructor signature>
+			...args: any[]
 		): SugarBoxCompatibleClassInstance<TClassInstance, TSerializedStructure>;
 
 		/** Immutable id that must be stable (i.e never ever change if you wish to keep current saves compatible) since it is used to index registered classes in the engine */
