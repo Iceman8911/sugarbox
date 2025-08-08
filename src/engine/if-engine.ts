@@ -876,25 +876,24 @@ class SugarboxEngine<
 		);
 	}
 
-	/** Can be used when directly loading a save from an exported save on disk  */
+	/** Can be used when directly loading a save from an exported save on disk
+	 *
+	 * @throws if the save was made on a later version than the engine or if a save migration throws
+	 */
 	async loadFromExport(data: string): Promise<void> {
 		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
 			"load",
 			async () => {
 				const {
 					achievements,
-					saveData: { intialState, snapshots, storyIndex },
+					saveData,
 					settings,
-				}: SugarBoxExportData<
-					TVariables,
-					TSettingsData,
-					TAchievementData
-				> = parse(data);
+				}: SugarBoxExportData<TVariables, TSettingsData, TAchievementData> =
+					parse(data);
 
 				// Replace the current state
-				this.#initialState = intialState;
-				this.#stateSnapshots = snapshots;
-				this.#index = storyIndex;
+				this.loadSaveFromData(saveData);
+
 				this.#achievements = achievements;
 				this.#settings = settings;
 			},

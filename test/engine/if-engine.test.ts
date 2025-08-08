@@ -357,6 +357,7 @@ describe("Advanced Saving and Loading", () => {
 	});
 
 	// TODO: Add save migration tests
+	test("a single save migration should work", async () => {});
 });
 
 describe("Custom Classes", () => {
