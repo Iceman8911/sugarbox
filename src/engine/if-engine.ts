@@ -234,10 +234,13 @@ class SugarboxEngine<
 		TAchievementData extends Record<string, unknown> = Record<string, boolean>,
 		TSettingsData extends Record<string, unknown> = Record<string, unknown>,
 	>(args: {
+		/** Name of the engine. Engines initalized with the same name have access to the same saves, acheivements, and story-specific settings */
 		name: string;
 
+		/** The initial set of variables to be uses as the starting state */
 		variables: TVariables;
 
+		/** Starting passage */
 		startPassage: SugarBoxPassage<TPassageType>;
 
 		/** Critical passages that must be available asap.
