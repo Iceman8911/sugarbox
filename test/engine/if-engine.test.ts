@@ -4,6 +4,7 @@ import type {
 	SugarBoxCompatibleClassConstructorCheck,
 	SugarBoxCompatibleClassInstance,
 } from "../../src/types/userland-classes";
+import { SugarBoxSemanticVersion } from "../../src/utils/version";
 import { createPersistenceAdapter } from "../mocks/persistence";
 
 const SAMPLE_PASSAGES = [
@@ -356,8 +357,179 @@ describe("Advanced Saving and Loading", () => {
 		expect(didThrow).toBeTrue();
 	});
 
-	// TODO: Add save migration tests
-	test("a single save migration should work", async () => {});
+	test("save migration(s) should work", async () => {
+		const persistence = createPersistenceAdapter();
+
+		type Version_0_1_0_Variables = {
+			prop1: number;
+			prop2: string;
+		};
+
+		const engine = await SugarboxEngine.init({
+			name: "Test",
+			startPassage: { name: "Start", passage: "This is the start passage" },
+			config: {
+				persistence,
+				saveVersion: new SugarBoxSemanticVersion(0, 1, 0),
+			},
+			otherPassages: [],
+			variables: { prop1: 12, prop2: "45" } as Version_0_1_0_Variables,
+			achievements: {} as Record<string, unknown>,
+		});
+
+		await engine.saveToSaveSlot(1);
+
+		type Version_0_2_0_Variables = {
+			prop1: string;
+			prop2: number;
+			prop3: {
+				nestedprop: boolean;
+			};
+		};
+
+		const engine2 = await SugarboxEngine.init({
+			name: "Test",
+			startPassage: { name: "Start", passage: "This is the start passage" },
+			config: {
+				persistence,
+				saveVersion: new SugarBoxSemanticVersion(0, 2, 0),
+			},
+			otherPassages: [],
+			variables: {
+				prop1: "1",
+				prop2: 12,
+				prop3: { nestedprop: true },
+			} as Version_0_2_0_Variables,
+			achievements: {} as Record<string, unknown>,
+			migrations: [
+				{
+					from: new SugarBoxSemanticVersion(0, 1, 0),
+					data: {
+						to: `0.2.0`,
+						migrater: (data: Version_0_1_0_Variables) => {
+							return {
+								prop1: data.prop1.toString(),
+								prop2: parseInt(data.prop2),
+								prop3: { nestedprop: true },
+							} as Version_0_2_0_Variables;
+						},
+					},
+				},
+			],
+		});
+
+		await engine2.loadFromSaveSlot(1);
+
+		expect(engine2.vars.prop1).toBe("12");
+		expect(engine2.vars.prop2).toBe(45);
+		expect(engine2.vars.prop3).not.toBeUndefined();
+
+		type Version_0_3_0_Variables = {
+			prop1: string;
+			prop2: [number, number];
+			prop3: {
+				nestedprop: "true" | "false";
+				nestedProp2: boolean;
+			};
+			prop4: string;
+		};
+
+		const engine3 = await SugarboxEngine.init({
+			name: "Test",
+			startPassage: { name: "Start", passage: "This is the start passage" },
+			config: {
+				persistence,
+				saveVersion: new SugarBoxSemanticVersion(0, 3, 0),
+			},
+			otherPassages: [],
+			variables: {} as Version_0_3_0_Variables,
+			achievements: {},
+			migrations: [
+				{
+					from: new SugarBoxSemanticVersion(0, 1, 0),
+					data: {
+						to: `0.2.0`,
+						migrater: (data: Version_0_1_0_Variables) => {
+							return {
+								prop1: data.prop1.toString(),
+								prop2: parseInt(data.prop2),
+								prop3: { nestedprop: true },
+							} as Version_0_2_0_Variables;
+						},
+					},
+				},
+				{
+					from: new SugarBoxSemanticVersion(0, 2, 0),
+					data: {
+						to: `0.3.0`,
+						migrater: (data: Version_0_2_0_Variables) => {
+							return {
+								prop1: data.prop1,
+								prop2: [data.prop2, 0],
+								prop3: {
+									nestedprop: data.prop3.nestedprop ? "true" : "false",
+									nestedProp2: data.prop3.nestedprop,
+								},
+								prop4: "newProp",
+							} as Version_0_3_0_Variables;
+						},
+					},
+				},
+			],
+		});
+
+		await engine3.loadFromSaveSlot(1);
+
+		expect(engine3.vars.prop1).toBe("12");
+		expect(engine3.vars.prop2).toEqual([45, 0]);
+		expect(engine3.vars.prop3.nestedprop).toBe("true");
+		expect(engine3.vars.prop3.nestedProp2).toBeTrue();
+		expect(engine3.vars.prop4).toBe("newProp");
+	});
+
+	test("liberal save compatibility mode should allow loading older minor versions without migration", async () => {
+		const persistence = createPersistenceAdapter();
+
+		type Version_0_1_0_Variables = {
+			prop1: number;
+			prop2: string;
+		};
+
+		const engine1 = await SugarboxEngine.init({
+			name: "Test",
+			startPassage: { name: "Start", passage: "This is the start passage" },
+			config: {
+				persistence,
+				saveVersion: new SugarBoxSemanticVersion(0, 1, 0),
+			},
+			otherPassages: [],
+			variables: { prop1: 123, prop2: "abc" } as Version_0_1_0_Variables,
+			achievements: {} as Record<string, unknown>,
+		});
+
+		await engine1.saveToSaveSlot(1);
+
+		// Initialize engine2 with a higher minor version but liberal compatibility
+		const engine2 = await SugarboxEngine.init({
+			name: "Test",
+			startPassage: { name: "Start", passage: "This is the start passage" },
+			config: {
+				persistence,
+				saveVersion: new SugarBoxSemanticVersion(0, 2, 0),
+				saveCompatibilityMode: "liberal",
+			},
+			otherPassages: [],
+			variables: { prop1: 0, prop2: "" } as Version_0_1_0_Variables, // Variables type should match the loaded save structure
+			achievements: {} as Record<string, unknown>,
+			migrations: [], // No migrations defined, as it should be compatible
+		});
+
+		await engine2.loadFromSaveSlot(1);
+
+		// Assert that the save loaded successfully and the data is from 0.1.0
+		expect(engine2.vars.prop1).toBe(123);
+		expect(engine2.vars.prop2).toBe("abc");
+	});
 });
 
 describe("Custom Classes", () => {
