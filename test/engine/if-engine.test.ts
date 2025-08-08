@@ -626,6 +626,9 @@ describe("PRNG and Random Number Generation", () => {
 		}
 
 		expect(sequence1).toEqual(sequence2);
+
+		// all generated numbers should be the same
+		expect([...new Set(sequence1)][0]).toEqual(sequence1[0]);
 	});
 
 	test("should generate different sequences when regenSeed is false vs true", async () => {
@@ -668,7 +671,7 @@ describe("PRNG and Random Number Generation", () => {
 		expect(noRegenSecond).not.toBe(withRegenSecond);
 	});
 
-	test("should regenerate seed on passage navigation when regenSeed is 'passage'", async () => {
+	test("should regenerate seed on passage navigation only when regenSeed is 'passage'", async () => {
 		const engine = await SugarboxEngine.init({
 			name: "PassageRegen",
 			startPassage: { name: "Start", passage: "Start passage" },
@@ -694,6 +697,10 @@ describe("PRNG and Random Number Generation", () => {
 		// Each navigation should change the seed, affecting subsequent randoms
 		expect(initialRandom).not.toBe(afterFirstNav);
 		expect(afterFirstNav).not.toBe(afterSecondNav);
+
+		// Same passage navigation should not change the seed
+		const oneMoreRandom = engine.random;
+		expect(oneMoreRandom).toBe(afterSecondNav);
 	});
 
 	test("should regenerate seed on each call when regenSeed is 'eachCall'", async () => {

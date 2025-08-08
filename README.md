@@ -209,6 +209,155 @@ The available events are:
 * `:loadStart`: Fired just before a load operation begins. The `detail` is null.
 * `:loadEnd`: Fired after a load operation completes. The `detail` contains a discriminated union denoting whether the operation was successful or not. If not successful, an error is also returned
 
+## Random Number Generation (PRNG)
+
+Sugarbox includes a built-in pseudorandom number generator (PRNG) that provides deterministic, reproducible random numbers for your interactive fiction. This is crucial for ensuring that random events can be consistent across save/load cycles and for debugging purposes.
+
+### Basic Usage
+
+Access random numbers through the `random` getter on the engine:
+
+```typescript
+const engine = await SugarboxEngine.init({
+	// ...your configuration
+});
+
+// Get a random number between 0 and 1 (inclusive)
+const randomValue = engine.random;
+
+// Use it for game mechanics
+if (engine.random < 0.5) {
+	console.log("Heads!");
+} else {
+	console.log("Tails!");
+}
+
+// Random array selection
+const outcomes = ["success", "failure", "critical"];
+const result = outcomes[Math.floor(engine.random * outcomes.length)];
+```
+
+### Seed Configuration
+
+The PRNG can be configured during engine initialization:
+
+```typescript
+const engine = await SugarboxEngine.init({
+	// ...other options
+	config: {
+		// Set a specific seed for deterministic behavior
+		initialSeed: 12345,
+
+		// Control when the seed regenerates (see below)
+		regenSeed: "passage", // "passage" | "eachCall" | false
+	},
+});
+```
+
+**Note**: If no `initialSeed` is provided, a random seed will be generated automatically.
+
+### Seed Regeneration Modes
+
+The `regenSeed` configuration controls when and how the random seed changes:
+
+#### `"passage"` (default)
+The seed regenerates every time you navigate to a new passage:
+
+```typescript
+const engine = await SugarboxEngine.init({
+	config: { regenSeed: "passage" },
+	// ...other options
+});
+
+console.log(engine.random); // e.g., 0.123
+console.log(engine.random); // e.g., 0.123 (same seed)
+
+engine.navigateTo("NewPassage");
+
+console.log(engine.random); // e.g., 0.789 (new seed after navigation)
+```
+
+#### `"eachCall"`
+The seed regenerates after every call to `engine.random`:
+
+```typescript
+const engine = await SugarboxEngine.init({
+	config: { regenSeed: "eachCall" },
+	// ...other options
+});
+
+console.log(engine.random); // e.g., 0.123
+console.log(engine.random); // e.g., 0.789 (different seed)
+console.log(engine.random); // e.g., 0.345 (different seed again)
+```
+
+#### `false`
+The seed never regenerates, so the same value will be returned every time you access `engine.random`:
+
+```typescript
+const engine = await SugarboxEngine.init({
+	config: {
+		regenSeed: false,
+		initialSeed: 42, // Fixed seed
+	},
+	// ...other options
+});
+
+// Will always produce the same sequence
+console.log(engine.random); // Always 0.123
+console.log(engine.random); // Always 0.123
+```
+
+### Save/Load Behavior
+
+The PRNG state is automatically preserved when saving and loading:
+
+```typescript
+const engine = await SugarboxEngine.init({
+	config: {
+		regenSeed: false,
+		persistence: yourPersistenceAdapter,
+	},
+	// ...other options
+});
+
+// Generate some random numbers
+engine.random; // 0.123
+engine.random; // 0.456
+
+// Save the game
+await engine.saveToSaveSlot(1);
+
+// Generate more numbers
+engine.random; // 0.789
+engine.random; // 0.321
+
+// Load the save
+await engine.loadFromSaveSlot(1);
+
+// Continue from where we saved
+engine.random; // 0.789 (same as after the save)
+engine.random; // 0.321 (same sequence continues)
+```
+
+This ensures that random events remain consistent across save/load cycles.
+
+### Note
+
+1. **Combine with game state**: Store random outcomes in your game state rather than recalculating them:
+
+```typescript
+// Good: Store the result
+engine.setVars((state) => {
+	if (!state.battleResult) {
+		state.battleResult = engine.random > 0.5 ? "victory" : "defeat";
+	}
+});
+
+// Avoid: Recalculating on every access
+const getBattleResult = () => engine.random > 0.5 ? "victory" : "defeat";
+```
+
 ## Contributing
 
 Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines.
