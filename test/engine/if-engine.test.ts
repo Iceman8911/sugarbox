@@ -165,9 +165,9 @@ describe("State Variables and History", () => {
 
 		engine.setVars((_) => testObj);
 
-		expect(Object.values(engine.vars)).toContainEqual(
-			Object.values(testObj)[0],
-		);
+		expect(engine.vars).toContainKeys(Object.keys(testObj));
+
+		expect(engine.vars).toContainValues(Object.values(testObj));
 	});
 
 	test("the state history should not go beyond the given limit and older entries should be squashed together", async () => {

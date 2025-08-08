@@ -316,7 +316,7 @@ class SugarboxEngine<
 	 *
 	 * Use this **solely** for setting values. If you must read a value, use `this.vars`
 	 *
-	 * **If you need to replace the entire state, *return a new object* (also make sure that undesirable properties are explicitly set to `null` else they'd still be included in the state) instead of directly *assigning the value***
+	 * **If you need to replace the entire state, *return a new object* instead of directly *assigning the value***
 	 */
 	setVars(
 		producer:
@@ -356,11 +356,11 @@ class SugarboxEngine<
 		const possibleValueToUseForReplacing = producer(proxy);
 
 		if (possibleValueToUseForReplacing) {
-			this.#stateSnapshots[self.#index] = {
+			this.#rewriteState({
 				...possibleValueToUseForReplacing,
 				__id: this.passageId,
 				__seed: this.#currentStatePrngSeed,
-			};
+			});
 		}
 
 		// Get the changes and emit them
@@ -774,10 +774,9 @@ class SugarboxEngine<
 						saveToMigrateVersion = SugarBoxSemanticVersion.__fromJSON(to);
 					}
 
-					// Save migration completed successfully so store it in the new snapshot
-					// TODO: Make a method for completely replacing the state
+					// Save migration completed successfully so rewrite the state with it
 					if (migratedState) {
-						this.#stateSnapshots[this.#index] = migratedState;
+						this.#rewriteState(migratedState);
 
 						break;
 					}
@@ -1157,6 +1156,17 @@ class SugarboxEngine<
 		this.#stateCache?.set(effectiveIndex, state);
 
 		return state;
+	}
+
+	/** **WARNING:** This will **replace** the intialState and **empty** all the snapshots. */
+	#rewriteState(
+		stateToReplaceTheCurrentOne: StateWithMetadata<TVariables>,
+	): void {
+		this.#initialState = stateToReplaceTheCurrentOne;
+
+		this.#stateSnapshots = this.#stateSnapshots.map((_) => ({}));
+
+		this.#stateCache?.clear();
 	}
 
 	#createCustomEvent<
