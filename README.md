@@ -99,23 +99,25 @@ const engine = await SugarboxEngine.init({
 
 The `config` object lets you control engine behavior. All options are optional; defaults are shown below.
 
-- `maxStateCount` (number): Maximum number of state snapshots to keep before merging old ones.  
+- `maxStateCount` (number): Maximum number of state snapshots to keep before merging old ones.
   *Default: 100*
-- `stateMergeCount` (number): Number of snapshots to merge when the state history fills up.  
+- `stateMergeCount` (number): Number of snapshots to merge when the state history fills up.
   *Default: 1*
-- `saveSlots` (number): Maximum number of save slots.  
+- `saveSlots` (number): Maximum number of save slots.
   *Default: 20*
-- `saveVersion` (SemanticVersion): Version to tag new saves with.  
+- `saveVersion` (SemanticVersion): Version to tag new saves with.
   *Default: 0.0.1*
-- `saveCompatibilityMode` ("strict" | "liberal"): How strictly to check save version compatibility.  
+- `saveCompatibilityMode` ("strict" | "liberal"): How strictly to check save version compatibility.
   *Default: "strict"*
-- `autoSave` ("passage" | "state" | false): Auto-save on passage navigation or state change.  
+- `autoSave` ("passage" | "state" | false): Auto-save on passage navigation or state change.
   *Default: false*
-- `loadOnStart` (boolean): Load the most recent save automatically on engine init.  
+- `loadOnStart` (boolean): Load the most recent save automatically on engine init.
   *Default: true*
-- `initialSeed` (number): Initial PRNG seed (0 to 2^32-1).  
+- `compressSave` (boolean): Whether to compress save data using gzip.
+  *Default: true*
+- `initialSeed` (number): Initial PRNG seed (0 to 2^32-1).
   *Default: random*
-- `regenSeed` ("passage" | "eachCall" | false): When to regenerate the PRNG seed.  
+- `regenSeed` ("passage" | "eachCall" | false): When to regenerate the PRNG seed.
   *Default: "passage"*
 - `cache` (adapter): Optional cache adapter for state snapshots.
 - `persistence` (adapter): Optional persistence adapter for saving/loading.
@@ -260,6 +262,8 @@ Sugarbox provides two main mechanisms for saving and loading game progress: usin
 
 ### Persistence Configuration
 
+> **Note:** Save data is compressed by default. The engine will auto-detect and decompress as needed when loading, so you do not need to handle this manually.
+
 To use save slots, you must first provide a `persistence` adapter in the engine's configuration. This adapter is responsible for the actual reading and writing of save data to a storage medium like `localStorage`, `sessionStorage`, or even a remote database.
 
 A simple adapter using `localStorage` might look like this:
@@ -289,6 +293,49 @@ const engine = await SugarboxEngine.init({
 	},
 });
 ```
+
+## Save Compression
+
+Sugarbox supports transparent compression and decompression of save data to minimize storage usage. By default, all save data (including save slots and exported saves) is compressed using the `gzip` format.
+
+### How It Works
+
+- **Compression**: When saving (either to a slot or exporting), the engine serializes the game state and, if `compressSave` is enabled in the config (default: `true`), compresses the string before storing it.
+- **Decompression**: When loading, the engine automatically detects if the data is compressed and decompresses it as needed. This is seamless for both save slots and imported/exported saves.
+- **Format**: The default compression format is `gzip`, chosen for its wide support and efficiency.
+
+### Configuration
+
+You can control compression behavior via the `compressSave` option in the engine config:
+
+```typescript
+const engine = await SugarboxEngine.init({
+  // ...
+  config: {
+    compressSave: true, // Enable (default) or disable save compression
+  }
+});
+```
+
+- Setting `compressSave: false` will store all saves as plain (uncompressed) JSON strings.
+
+### Advanced
+
+- Compression and decompression are handled internally using the [`@zalari/string-compression-utils`](https://www.npmjs.com/package/@zalari/string-compression-utils) package.
+- The engine will always auto-detect and decompress save data, so you can safely mix compressed and uncompressed saves.
+- Exported save strings are also compressed if `compressSave` is enabled.
+
+#### Example: Exporting and Importing with Compression
+
+```typescript
+// Export (compressed by default)
+const exportData = await engine.saveToExport();
+
+// Import (auto-detects compression)
+await engine.loadFromExport(exportData);
+```
+
+---
 
 ### Save Slots
 
@@ -323,6 +370,8 @@ Save slots are numbered locations where the game state can be stored. A maximum 
     ```
 
 ### Exporting and Importing
+
+> **Note:** Exported save strings are compressed by default if `compressSave` is enabled. The engine will auto-detect and decompress imported data.
 
 This method allows you to get a serialized string of the entire game state, which the player can copy and save manually, or have downloaded for use later.
 
@@ -572,5 +621,5 @@ MIT
 
 ---
 
-**TypeScript Support:**  
+**TypeScript Support:**
 Sugarbox is written in TypeScript and provides full type definitions for all public APIs. Using TypeScript is highly recommended for the best experience.
