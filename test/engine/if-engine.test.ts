@@ -260,6 +260,82 @@ describe("Saving and Loading", () => {
 	});
 });
 
+describe("Autosave", () => {
+	test("should autosave on passage change when autoSave is 'passage'", async () => {
+		const persistence = createPersistenceAdapter();
+		const engine = await SugarboxEngine.init({
+			name: "AutoSaveTest",
+			startPassage: { name: "Start", passage: "This is the start passage" },
+			config: {
+				persistence,
+				autoSave: "passage",
+			},
+			otherPassages: [{ name: "Next", passage: "Next passage." }],
+			variables: { counter: 0 },
+			achievements: {},
+		});
+
+		// Change state and navigate to trigger autosave
+		engine.setVars((vars) => {
+			vars.counter = 42;
+		});
+
+		engine.navigateTo("Next");
+
+		// Wait for any async autosave to complete
+		await new Promise((r) => setTimeout(r, 10));
+
+		// Check autosave slot
+		let foundAutosave = false;
+
+		for await (const save of engine.getSaves()) {
+			if (save.type === "autosave") {
+				foundAutosave = true;
+
+				expect(save.data.snapshots[save.data.storyIndex - 1].counter).toBe(42);
+
+				expect(save.data.lastPassageId).toBe("Next");
+			}
+		}
+		expect(foundAutosave).toBe(true);
+	});
+
+	test("should autosave on state change when autoSave is 'state'", async () => {
+		const persistence = createPersistenceAdapter();
+
+		const engine = await SugarboxEngine.init({
+			name: "AutoSaveTest2",
+			startPassage: { name: "Start", passage: "This is the start passage" },
+			config: {
+				persistence,
+				autoSave: "state",
+			},
+			otherPassages: [],
+			variables: { counter: 0 },
+			achievements: {},
+		});
+
+		// Change state to trigger autosave
+		engine.setVars((vars) => {
+			vars.counter = 99;
+		});
+
+		// Wait for any async autosave to complete
+		await new Promise((r) => setTimeout(r, 10));
+
+		// Check autosave slot
+		let foundAutosave = false;
+		for await (const save of engine.getSaves()) {
+			if (save.type === "autosave") {
+				foundAutosave = true;
+				expect(save.data.snapshots[save.data.storyIndex].counter).toBe(99);
+				expect(save.data.lastPassageId).toBe("Start");
+			}
+		}
+		expect(foundAutosave).toBe(true);
+	});
+});
+
 describe("Advanced Saving and Loading", () => {
 	test("saveToExport and loadFromExport should work", async () => {
 		engine.setVars((s) => {
