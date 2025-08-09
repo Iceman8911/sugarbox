@@ -266,7 +266,7 @@ class SugarboxEngine<
 		 * Add migrations to this array to migrate the old save data to the new version.
 		 */
 		migrations?: {
-			from: SugarBoxSemanticVersion;
+			from: SugarBoxSemanticVersionString;
 			data: SugarBoxSaveMigration<never, unknown>;
 		}[];
 	}): Promise<
@@ -643,12 +643,12 @@ class SugarboxEngine<
 	 */
 	registerMigrators<TOldSaveStructure, TNewSaveStructure = TVariables>(
 		...migrators: {
-			from: SugarBoxSemanticVersion;
+			from: SugarBoxSemanticVersionString;
 			data: SugarBoxSaveMigration<TOldSaveStructure, TNewSaveStructure>;
 		}[]
 	): void {
 		for (const { from, data } of migrators) {
-			const semanticVersionString = from.toString();
+			const semanticVersionString = from;
 
 			if (this.#saveMigrationMap.has(semanticVersionString)) {
 				throw new Error(

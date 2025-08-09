@@ -482,7 +482,7 @@ describe("Advanced Saving and Loading", () => {
 			achievements: {} as Record<string, unknown>,
 			migrations: [
 				{
-					from: new SugarBoxSemanticVersion(0, 1, 0),
+					from: `0.1.0`,
 					data: {
 						to: `0.2.0`,
 						migrater: (data: Version_0_1_0_Variables) => {
@@ -525,7 +525,7 @@ describe("Advanced Saving and Loading", () => {
 			achievements: {},
 			migrations: [
 				{
-					from: new SugarBoxSemanticVersion(0, 1, 0),
+					from: `0.1.0`,
 					data: {
 						to: `0.2.0`,
 						migrater: (data: Version_0_1_0_Variables) => {
@@ -538,7 +538,7 @@ describe("Advanced Saving and Loading", () => {
 					},
 				},
 				{
-					from: new SugarBoxSemanticVersion(0, 2, 0),
+					from: `0.2.0`,
 					data: {
 						to: `0.3.0`,
 						migrater: (data: Version_0_2_0_Variables) => {
@@ -1244,7 +1244,7 @@ describe("Error Conditions and Edge Cases", () => {
 			achievements: {},
 			migrations: [
 				{
-					from: new SugarBoxSemanticVersion(0, 1, 0),
+					from: `0.1.0`,
 					data: {
 						to: `0.2.0`,
 						migrater: (data: { testProp: string }) => ({
@@ -1280,11 +1280,11 @@ describe("Error Conditions and Edge Cases", () => {
 		});
 
 		const migrator1 = {
-			from: new SugarBoxSemanticVersion(0, 1, 0),
+			from: `0.1.0`,
 			data: { to: `0.2.0`, migrater: (data: object) => data },
 		} as const;
 		const migrator2 = {
-			from: new SugarBoxSemanticVersion(0, 1, 0), // Duplicate version
+			from: `0.1.0`, // Duplicate version
 			data: { to: `0.3.0`, migrater: (data: object) => data },
 		} as const;
 
