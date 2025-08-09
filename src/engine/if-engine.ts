@@ -62,10 +62,6 @@ type SnapshotWithMetadata<TVariables extends Record<string, unknown>> = Partial<
 	TVariables & SugarBoxMetadata
 >;
 
-type State<TVariables extends Record<string, unknown>> = TVariables;
-
-type Snapshot<TVariables extends Record<string, unknown>> = Partial<TVariables>;
-
 type Config<TState extends Record<string, unknown>> = Partial<
 	SugarBoxConfig<StateWithMetadata<TState>>
 >;
@@ -323,7 +319,7 @@ class SugarboxEngine<
 	 *
 	 * May be expensive to calculate depending on the history of the story.
 	 */
-	get vars(): Readonly<State<TVariables>> {
+	get vars(): Readonly<TVariables> {
 		return this.#varsWithMetadata;
 	}
 
@@ -335,8 +331,8 @@ class SugarboxEngine<
 	 */
 	setVars(
 		producer:
-			| ((variables: State<TVariables>) => void)
-			| ((variables: State<TVariables>) => State<TVariables>),
+			| ((variables: TVariables) => void)
+			| ((variables: TVariables) => TVariables),
 	): void {
 		const self = this;
 
@@ -639,7 +635,7 @@ class SugarboxEngine<
 	 *
 	 * @throws if a migration for the same version already exists
 	 */
-	registerMigrators<TOldSaveStructure, TNewSaveStructure = State<TVariables>>(
+	registerMigrators<TOldSaveStructure, TNewSaveStructure = TVariables>(
 		...migrators: {
 			from: SugarBoxSemanticVersion;
 			data: SugarBoxSaveMigration<TOldSaveStructure, TNewSaveStructure>;
