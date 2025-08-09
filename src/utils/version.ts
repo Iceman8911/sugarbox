@@ -15,6 +15,8 @@ type SemanticVersionString = `${number}.${number}.${number}`;
 type SemanticVersionGroup = "major" | "minor" | "patch";
 
 /**
+ * Represents a semantic version, following the format `major.minor.patch`.
+ *
  * Please don't use negative numbers in the constructor :/
  */
 class SemanticVersion
