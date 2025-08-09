@@ -1,6 +1,6 @@
 # Sugarbox
 
-Loosely based off *Twine Sugarcube*, **Sugarbox** is a lightweight, headless, unopionionated, and framework-agnostic library to help with developing web-based interactive fiction.
+Loosely based off *Twine Sugarcube*, **Sugarbox** is a lightweight (~8KB), headless, unopionionated, and framework-agnostic library to help with developing web-based interactive fiction.
 
 ## Features
 - Easy handling for passage and game state (e.g. Variables).
