@@ -208,6 +208,8 @@ const engine = await SugarboxEngine.init({
 
 Sugarbox supports persistent achievements and settings, which are not tied to a specific save slot.
 
+**Note:** Achievements and settings are not compressed at the moment.
+
 To update achievements:
 ```typescript
 await engine.setAchievements((ach) => {
