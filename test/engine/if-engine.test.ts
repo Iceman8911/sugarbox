@@ -64,6 +64,7 @@ async function initEngine() {
 
 	type SerializedPlayer = typeof dummy;
 
+	// biome-ignore lint/correctness/noUnusedVariables: <Workaround for enforcing static class props>
 	type PlayerCheck = SugarBoxCompatibleClassConstructorCheck<
 		SerializedPlayer,
 		typeof Player
@@ -832,7 +833,9 @@ describe("PRNG and Random Number Generation", () => {
 		});
 
 		// Get initial random numbers
+		// biome-ignore lint/correctness/noUnusedVariables: <To change the random number>
 		const noRegenFirst = engineNoRegen.random;
+		// biome-ignore lint/correctness/noUnusedVariables: <To change the random number>
 		const withRegenFirst = engineWithRegen.random;
 
 		// Navigate to new passage (only affects withRegen engine)
@@ -965,6 +968,7 @@ describe("PRNG and Random Number Generation", () => {
 		const passage1Random = engine.random;
 
 		engine.navigateTo("Passage2");
+		// biome-ignore lint/correctness/noUnusedVariables: <To change the random number>
 		const passage2Random = engine.random;
 
 		// Go back in history

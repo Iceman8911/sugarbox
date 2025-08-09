@@ -113,6 +113,7 @@ class SemanticVersion
 	}
 }
 
+// biome-ignore lint/correctness/noUnusedVariables: <Workaround for enforcing static class props>
 type SemanticVersionCheck = SugarBoxCompatibleClassConstructorCheck<
 	SemanticVersionString,
 	typeof SemanticVersion
