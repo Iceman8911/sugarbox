@@ -6,7 +6,6 @@ import type {
 	SugarBoxCompatibleClassInstance,
 } from "../../src/types/userland-classes";
 import { isStringJsonObjectOrCompressedString } from "../../src/utils/compression";
-import { SugarBoxSemanticVersion } from "../../src/utils/version";
 import { createPersistenceAdapter } from "../mocks/persistence";
 
 const SAMPLE_PASSAGES = [
@@ -449,7 +448,7 @@ describe("Advanced Saving and Loading", () => {
 			startPassage: { name: "Start", passage: "This is the start passage" },
 			config: {
 				persistence,
-				saveVersion: new SugarBoxSemanticVersion(0, 1, 0),
+				saveVersion: `0.1.0`,
 			},
 			otherPassages: [],
 			variables: { prop1: 12, prop2: "45" } as Version_0_1_0_Variables,
@@ -471,7 +470,7 @@ describe("Advanced Saving and Loading", () => {
 			startPassage: { name: "Start", passage: "This is the start passage" },
 			config: {
 				persistence,
-				saveVersion: new SugarBoxSemanticVersion(0, 2, 0),
+				saveVersion: `0.2.0`,
 			},
 			otherPassages: [],
 			variables: {
@@ -518,7 +517,7 @@ describe("Advanced Saving and Loading", () => {
 			startPassage: { name: "Start", passage: "This is the start passage" },
 			config: {
 				persistence,
-				saveVersion: new SugarBoxSemanticVersion(0, 3, 0),
+				saveVersion: `0.3.0`,
 			},
 			otherPassages: [],
 			variables: {} as Version_0_3_0_Variables,
@@ -579,7 +578,7 @@ describe("Advanced Saving and Loading", () => {
 			startPassage: { name: "Start", passage: "This is the start passage" },
 			config: {
 				persistence,
-				saveVersion: new SugarBoxSemanticVersion(0, 1, 0),
+				saveVersion: `0.1.0`,
 			},
 			otherPassages: [],
 			variables: { prop1: 123, prop2: "abc" } as Version_0_1_0_Variables,
@@ -594,7 +593,7 @@ describe("Advanced Saving and Loading", () => {
 			startPassage: { name: "Start", passage: "This is the start passage" },
 			config: {
 				persistence,
-				saveVersion: new SugarBoxSemanticVersion(0, 2, 0),
+				saveVersion: `0.2.0`,
 				saveCompatibilityMode: "liberal",
 			},
 			otherPassages: [],
@@ -1222,7 +1221,7 @@ describe("Error Conditions and Edge Cases", () => {
 			startPassage: { name: "Start", passage: "This is the start passage" },
 			config: {
 				persistence,
-				saveVersion: new SugarBoxSemanticVersion(0, 1, 0),
+				saveVersion: `0.1.0`,
 			},
 			otherPassages: [],
 			variables: { testProp: "oldValue" },
@@ -1237,7 +1236,7 @@ describe("Error Conditions and Edge Cases", () => {
 			startPassage: { name: "Start", passage: "This is the start passage" },
 			config: {
 				persistence,
-				saveVersion: new SugarBoxSemanticVersion(0, 3, 0),
+				saveVersion: `0.3.0`,
 			},
 			otherPassages: [],
 			variables: { testProp: "defaultValue" },

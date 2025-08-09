@@ -1,4 +1,7 @@
-import type { SugarBoxSemanticVersion } from "../utils/version";
+import type {
+	SugarBoxSemanticVersion,
+	SugarBoxSemanticVersionString,
+} from "../utils/version";
 import type {
 	SugarBoxCacheAdapter,
 	SugarBoxPersistenceAdapter,
@@ -115,7 +118,7 @@ type SugarBoxConfig<
 	/** Semantic version to use for all newly created saves by the engine. Also acts as a reference point for the engine to determine if a previous save is compatible with the current version of the story.
 	 *
 	 */
-	saveVersion: SugarBoxSemanticVersion;
+	saveVersion: SugarBoxSemanticVersionString;
 
 	/**
 	 * Determines how strict the engine will be when deciding if a save is compatible the the current engine's version.

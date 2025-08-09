@@ -52,7 +52,7 @@ const defaultConfig = {
 
 	saveSlots: 20,
 
-	saveVersion: new SugarBoxSemanticVersion(0, 0, 1),
+	saveVersion: `0.0.1`,
 } as const satisfies SugarBoxConfig;
 
 const MINIMUM_SAVE_SLOT_INDEX = 0;
@@ -680,7 +680,7 @@ class SugarboxEngine<
 					intialState: this.#initialState,
 					lastPassageId: this.passageId,
 					savedOn: new Date(),
-					saveVersion,
+					saveVersion: SugarBoxSemanticVersion.__fromJSON(saveVersion),
 					snapshots: this.#stateSnapshots,
 					storyIndex: this.#index,
 				};
@@ -746,7 +746,7 @@ class SugarboxEngine<
 
 		const saveCompatibility = isSaveCompatibleWithEngine(
 			saveVersion,
-			engineVersion,
+			SugarBoxSemanticVersion.__fromJSON(engineVersion),
 			saveCompatibilityMode,
 		);
 
@@ -887,7 +887,9 @@ class SugarboxEngine<
 					saveData: {
 						intialState: this.#initialState,
 						lastPassageId: this.passageId,
-						saveVersion: this.#config.saveVersion,
+						saveVersion: SugarBoxSemanticVersion.__fromJSON(
+							this.#config.saveVersion,
+						),
 						savedOn: new Date(),
 						snapshots: this.#stateSnapshots,
 						storyIndex: this.#index,
