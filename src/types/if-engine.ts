@@ -143,6 +143,12 @@ type SugarBoxConfig<
 	 */
 	loadOnStart: boolean;
 
+	/** Determines whether or not save data will be compresses.
+	 *
+	 * @default true
+	 */
+	compressSave: boolean;
+
 	/** Intial seed for predictable rng.
 	 *
 	 * **Must be a number between 0 and 2^32 - 1 (inclusive).**

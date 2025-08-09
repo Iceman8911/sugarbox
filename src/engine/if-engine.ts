@@ -6,6 +6,7 @@
 // - The current state snapshot is the last state in the list, which is mutable.
 
 import { PRNG } from "@iceman8911/tiny-prng";
+import { compress, decompress } from "@zalari/string-compression-utils";
 import { parse, registerCustom, stringify } from "superjson";
 import type { ReadonlyDeep } from "type-fest";
 import type { SugarBoxCacheAdapter } from "../types/adapters";
@@ -26,6 +27,7 @@ import type {
 	SugarBoxCompatibleClassInstance,
 } from "../types/userland-classes";
 import { clone } from "../utils/clone";
+import { isStringJsonObjectOrCompressedString } from "../utils/compression";
 import { makeImmutable } from "../utils/mutability";
 import {
 	isSaveCompatibleWithEngine,
@@ -35,6 +37,8 @@ import {
 
 const defaultConfig = {
 	autoSave: false,
+
+	compressSave: true,
 
 	loadOnStart: true,
 
@@ -54,6 +58,8 @@ const defaultConfig = {
 const MINIMUM_SAVE_SLOT_INDEX = 0;
 
 const MINIMUM_SAVE_SLOTS = 1;
+
+const SAVE_COMPRESSION_FORMAT = "gzip" satisfies CompressionFormat;
 
 type StateWithMetadata<TVariables extends Record<string, unknown>> =
 	TVariables & SugarBoxMetadata;
@@ -664,7 +670,7 @@ class SugarboxEngine<
 		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
 			"save",
 			async () => {
-				const { persistence, saveVersion } = this.#config;
+				const { persistence, saveVersion, compressSave } = this.#config;
 
 				SugarboxEngine.#assertPersistenceIsAvailable(persistence);
 
@@ -679,7 +685,13 @@ class SugarboxEngine<
 					storyIndex: this.#index,
 				};
 
-				await persistence.set(saveKey, stringify(saveData));
+				const stringifiedSaveData = stringify(saveData);
+
+				const dataToStore = compressSave
+					? await compress(stringifiedSaveData, SAVE_COMPRESSION_FORMAT)
+					: stringifiedSaveData;
+
+				await persistence.set(saveKey, dataToStore);
 			},
 		);
 	}
@@ -706,7 +718,10 @@ class SugarboxEngine<
 					throw new Error(`No save data found for slot ${saveSlot}`);
 				}
 
-				this.loadSaveFromData(parse(serializedSaveData));
+				const jsonString =
+					await decompressJsonStringIfCompressed(serializedSaveData);
+
+				this.loadSaveFromData(parse(jsonString));
 			},
 		);
 	}
@@ -830,7 +845,9 @@ class SugarboxEngine<
 
 			if (!serializedSaveData) continue;
 
-			const saveData: SugarBoxSaveData<TVariables> = parse(serializedSaveData);
+			const saveData: SugarBoxSaveData<TVariables> = parse(
+				await decompressJsonStringIfCompressed(serializedSaveData),
+			);
 
 			if (key === this.#getSaveKeyFromSaveSlotNumber()) {
 				yield { type: "autosave", data: saveData };
@@ -879,7 +896,13 @@ class SugarboxEngine<
 					achievements: this.#achievements,
 				};
 
-				return stringify(exportData);
+				const stringifiedExportData = stringify(exportData);
+
+				if (this.#config.compressSave) {
+					return compress(stringifiedExportData, SAVE_COMPRESSION_FORMAT);
+				}
+
+				return stringifiedExportData;
 			},
 		);
 	}
@@ -892,12 +915,14 @@ class SugarboxEngine<
 		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
 			"load",
 			async () => {
+				const jsonString = await decompressJsonStringIfCompressed(data);
+
 				const {
 					achievements,
 					saveData,
 					settings,
 				}: SugarBoxExportData<TVariables, TSettingsData, TAchievementData> =
-					parse(data);
+					parse(jsonString);
 
 				// Replace the current state
 				this.loadSaveFromData(saveData);
@@ -1329,6 +1354,15 @@ class SugarboxEngine<
 	get #currentStatePrng(): PRNG {
 		return this.#getPrngFromSeed(this.#varsWithMetadata.__seed);
 	}
+}
+
+async function decompressJsonStringIfCompressed(
+	possiblyCompressedString: string,
+): Promise<string> {
+	return isStringJsonObjectOrCompressedString(possiblyCompressedString) ===
+		"json"
+		? possiblyCompressedString
+		: decompress(possiblyCompressedString, SAVE_COMPRESSION_FORMAT);
 }
 
 export { SugarboxEngine };

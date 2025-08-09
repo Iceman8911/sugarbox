@@ -1,9 +1,11 @@
+import "@stardazed/streams-polyfill";
 import { beforeEach, describe, expect, test } from "bun:test";
 import { SugarboxEngine } from "../../src";
 import type {
 	SugarBoxCompatibleClassConstructorCheck,
 	SugarBoxCompatibleClassInstance,
 } from "../../src/types/userland-classes";
+import { isStringJsonObjectOrCompressedString } from "../../src/utils/compression";
 import { SugarBoxSemanticVersion } from "../../src/utils/version";
 import { createPersistenceAdapter } from "../mocks/persistence";
 
@@ -530,6 +532,99 @@ describe("Advanced Saving and Loading", () => {
 		// Assert that the save loaded successfully and the data is from 0.1.0
 		expect(engine2.vars.prop1).toBe(123);
 		expect(engine2.vars.prop2).toBe("abc");
+	});
+
+	test("ensure that saves are compressed or not when the config option is set to true / false", async () => {
+		const persistence = createPersistenceAdapter();
+
+		const ENGINE_NAME = "Test1";
+
+		const engineArgs = {
+			name: ENGINE_NAME,
+			startPassage: { name: ":p", passage: "TTTT" },
+			otherPassages: [],
+			variables: {
+				pain: true,
+				test: { nested: "pain" },
+				pain2: {
+					pain: true,
+					test: { nested: "pain" },
+					pain3: {
+						pain: true,
+						test: { nested: "pain" },
+						pain2: { pain: true, test: { nested: "pain" } },
+					},
+				},
+			},
+			config: { persistence, compressSave: true },
+		} as const;
+
+		//@ts-expect-error
+		const engine1 = await SugarboxEngine.init(engineArgs);
+
+		await engine1.saveToSaveSlot(1);
+
+		const slot1Data =
+			(await persistence.get(`sugarbox-${ENGINE_NAME}-slot1`)) ?? '{""}';
+
+		expect(isStringJsonObjectOrCompressedString(slot1Data)).toBe("compressed");
+
+		const ENGINE_NAME2 = "Test2";
+
+		//@ts-expect-error
+		const engine2 = await SugarboxEngine.init({
+			...engineArgs,
+			name: ENGINE_NAME2,
+			config: { ...engineArgs.config, compressSave: false },
+		});
+
+		await engine2.saveToSaveSlot(1);
+
+		const slot2Data =
+			(await persistence.get(`sugarbox-${ENGINE_NAME2}-slot1`)) ?? '{""}';
+
+		expect(isStringJsonObjectOrCompressedString(slot2Data)).toBe("json");
+	});
+
+	test("a reinitialized engine that is set to not compress save files should still be able to load a previously compressed save without issue", async () => {
+		const persistence = createPersistenceAdapter();
+
+		const ENGINE_NAME = "Test1";
+
+		const engineArgs = {
+			name: ENGINE_NAME,
+			startPassage: { name: ":p", passage: "TTTT" },
+			otherPassages: [],
+			variables: {
+				pain: true,
+				test: { nested: "pain" },
+				pain2: {
+					pain: true,
+					test: { nested: "pain" },
+					pain3: {
+						pain: true,
+						test: { nested: "pain" },
+						pain2: { pain: true, test: { nested: "pain" } },
+					},
+				},
+			},
+			config: { persistence, compressSave: true },
+		} as const;
+
+		//@ts-expect-error
+		const engine1 = await SugarboxEngine.init(engineArgs);
+
+		await Promise.all([engine1.saveToSaveSlot(1), engine1.saveToSaveSlot(2)]);
+
+		//@ts-expect-error
+		const engine2 = await SugarboxEngine.init({
+			...engineArgs,
+			config: { ...engineArgs.config, compressSave: false },
+		});
+
+		await engine2.loadFromSaveSlot(2);
+
+		expect(engine2.vars.pain).toBeTrue();
 	});
 });
 
