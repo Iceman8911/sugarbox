@@ -1,0 +1,132 @@
+import { describe, expect, test } from "bun:test";
+import { registerClass } from "superjson";
+import { clone } from "../../src/utils/clone";
+import { makeImmutable, makeMutable } from "../../src/utils/mutability";
+
+// Define a simple custom class for testing superjson compatibility
+class TestCustomClass {
+	value: string;
+
+	constructor(value: string) {
+		this.value = value;
+	}
+
+	// Required for SuperJSON
+	toJSON() {
+		return { value: this.value };
+	}
+
+	// Required for SuperJSON
+	static fromJSON(json: { value: string }) {
+		return new TestCustomClass(json.value);
+	}
+	static __superjson_type = "TestCustomClass";
+
+	greet() {
+		return `Hello, ${this.value}!`;
+	}
+}
+
+// Register the custom class with SuperJSON
+registerClass(TestCustomClass);
+
+describe("Utility Functions", () => {
+	describe("clone", () => {
+		test("should deep clone primitive types", () => {
+			const num = 123;
+			const clonedNum = clone(num);
+			expect(clonedNum).toBe(num);
+
+			const str = "hello";
+			const clonedStr = clone(str);
+			expect(clonedStr).toBe(str);
+
+			const bool = true;
+			const clonedBool = clone(bool);
+			expect(clonedBool).toBe(bool);
+
+			const nu = null;
+			const clonedNull = clone(nu);
+			expect(clonedNull).toBe(nu);
+
+			const und = undefined;
+			const clonedUndefined = clone(und);
+			expect(clonedUndefined).toBe(und);
+		});
+
+		test("should deep clone plain objects", () => {
+			const obj = { a: 1, b: "two", c: { d: true } };
+			const clonedObj = clone(obj);
+			expect(clonedObj).toEqual(obj);
+			expect(clonedObj).not.toBe(obj); // Ensure it's a new object
+			expect(clonedObj.c).not.toBe(obj.c); // Ensure nested objects are also new
+		});
+
+		test("should deep clone arrays", () => {
+			const arr = [1, "two", { a: true }];
+			const clonedArr = clone(arr);
+			expect(clonedArr).toEqual(arr);
+			expect(clonedArr).not.toBe(arr); // Ensure it's a new array
+			expect(clonedArr[2]).not.toBe(arr[2]); // Ensure nested objects are also new
+		});
+
+		test("should deep clone objects containing custom classes", () => {
+			const customInstance = new TestCustomClass("World");
+			const objWithCustom = { data: 1, custom: customInstance };
+			const clonedObj = clone(objWithCustom);
+
+			expect(clonedObj).toEqual(objWithCustom);
+			expect(clonedObj).not.toBe(objWithCustom);
+			expect(clonedObj.custom).not.toBe(customInstance);
+			expect(clonedObj.custom).toBeInstanceOf(TestCustomClass);
+			expect(clonedObj.custom.value).toBe("World");
+			expect(clonedObj.custom.greet()).toBe("Hello, World!");
+		});
+
+		test("should handle circular references gracefully (using structuredClone fallback)", () => {
+			type Circular = {
+				a: number;
+				b: Circular | null;
+			};
+
+			const obj: Circular = { a: 1, b: null };
+			obj.b = obj; // Create circular reference
+
+			// SuperJSON should handle this, but if it fails, structuredClone will catch it.
+			const clonedObj = clone(obj);
+			expect(clonedObj).toEqual(obj);
+			expect(clonedObj).not.toBe(obj);
+			expect(clonedObj.b).toBe(clonedObj); // Cloned object should also have a circular reference
+		});
+	});
+
+	describe("mutability helpers", () => {
+		test("makeMutable should return the same object reference", () => {
+			const obj = { a: 1, b: { c: true } };
+			const mutableObj = makeMutable(obj);
+			expect(mutableObj).toBe(obj);
+			// We can't directly test the type-level change at runtime,
+			// but we can assert that it's the same object.
+			mutableObj.a = 2; // Should be allowed by type system
+			expect(obj.a).toBe(2);
+		});
+
+		test("makeImmutable should return the same object reference", () => {
+			const obj = { a: 1, b: { c: true } };
+			const immutableObj = makeImmutable(obj);
+			expect(immutableObj).toBe(obj);
+			// Similarly, this tests runtime behavior, not type-level immutability.
+			// The original object is still mutable if it wasn't frozen.
+			obj.a = 2;
+			expect(immutableObj.a).toBe(2);
+		});
+
+		test("makeImmutable should not deeply freeze the object at runtime", () => {
+			const obj = { a: 1, b: { c: true } };
+			const immutableObj = makeImmutable(obj);
+			// This demonstrates that makeImmutable is a type-level assertion, not a runtime deep freeze
+			obj.b.c = false;
+			expect(immutableObj.b.c).toBe(false);
+		});
+	});
+});

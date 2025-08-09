@@ -1037,4 +1037,125 @@ describe("PRNG and Random Number Generation", () => {
 	});
 });
 
-describe("Error Conditions and Edge Cases", () => {});
+describe("Error Conditions and Edge Cases", () => {
+	test("should throw an error when loading a save with no migrator found for an outdated version", async () => {
+		const persistence = createPersistenceAdapter();
+
+		// Create a save with version 0.1.0
+		const engine1 = await SugarboxEngine.init({
+			name: "Test",
+			startPassage: { name: "Start", passage: "This is the start passage" },
+			config: {
+				persistence,
+				saveVersion: new SugarBoxSemanticVersion(0, 1, 0),
+			},
+			otherPassages: [],
+			variables: { testProp: "oldValue" },
+			achievements: {},
+		});
+		await engine1.saveToSaveSlot(1);
+
+		// Initialize engine2 with version 0.3.0, but only register a migrator from 0.1.0 to 0.2.0
+		// This simulates a missing migration step (0.2.0 to 0.3.0)
+		const engine2 = await SugarboxEngine.init({
+			name: "Test",
+			startPassage: { name: "Start", passage: "This is the start passage" },
+			config: {
+				persistence,
+				saveVersion: new SugarBoxSemanticVersion(0, 3, 0),
+			},
+			otherPassages: [],
+			variables: { testProp: "defaultValue" },
+			achievements: {},
+			migrations: [
+				{
+					from: new SugarBoxSemanticVersion(0, 1, 0),
+					data: {
+						to: `0.2.0`,
+						migrater: (data: { testProp: string }) => ({
+							testProp: `${data.testProp}-migrated`,
+						}),
+					},
+				},
+			],
+		});
+
+		let didThrow = false;
+		try {
+			await engine2.loadFromSaveSlot(1);
+		} catch (e: unknown) {
+			didThrow = true;
+			expect(e).toBeInstanceOf(Error);
+			expect((e as Error).message).toContain(
+				"No migrator function found for save version 0.2.0",
+			);
+		}
+		expect(didThrow).toBeTrue();
+	});
+
+	test("should throw an error when attempting to register duplicate migrators", async () => {
+		const persistence = createPersistenceAdapter();
+		const engine = await SugarboxEngine.init({
+			name: "Test",
+			startPassage: { name: "Start", passage: "This is the start passage" },
+			config: { persistence },
+			variables: {},
+			achievements: {},
+			otherPassages: [],
+		});
+
+		const migrator1 = {
+			from: new SugarBoxSemanticVersion(0, 1, 0),
+			data: { to: `0.2.0`, migrater: (data: object) => data },
+		} as const;
+		const migrator2 = {
+			from: new SugarBoxSemanticVersion(0, 1, 0), // Duplicate version
+			data: { to: `0.3.0`, migrater: (data: object) => data },
+		} as const;
+
+		engine.registerMigrators(migrator1);
+
+		let didThrow = false;
+		try {
+			engine.registerMigrators(migrator2);
+		} catch (e: unknown) {
+			didThrow = true;
+			expect(e).toBeInstanceOf(Error);
+			expect((e as Error).message).toContain(
+				"A migration for version 0.1.0 already exists",
+			);
+		}
+		expect(didThrow).toBeTrue();
+	});
+
+	test("should throw an error when navigating to a non-existent passage", () => {
+		let didThrow = false;
+		try {
+			engine.navigateTo("NonExistentPassage");
+		} catch (e: unknown) {
+			didThrow = true;
+			expect(e).toBeInstanceOf(Error);
+			expect((e as Error).message).toBeString();
+		}
+		expect(didThrow).toBeTrue();
+	});
+
+	test("should throw an error if the engine is initialized without a start passage", async () => {
+		let didThrow = false;
+		try {
+			// @ts-expect-error This test specifically aims to trigger an error for missing startPassage
+			await SugarboxEngine.init({
+				name: "InvalidInitTest",
+				config: { persistence: createPersistenceAdapter() },
+				variables: {},
+				achievements: {},
+				otherPassages: [],
+			});
+		} catch (e: unknown) {
+			didThrow = true;
+			expect(e).toBeInstanceOf(Error);
+			expect((e as Error).message).toBeString();
+		}
+		expect(didThrow).toBeTrue();
+	});
+});
