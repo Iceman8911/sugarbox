@@ -183,7 +183,7 @@ class SugarboxEngine<
 	#passages = new Map<string, TPassageType>();
 
 	/** Since recalculating the current state can be expensive */
-	#stateCache?: SugarBoxCacheAdapter<number, StateWithMetadata<TVariables>>;
+	#stateCache?: SugarBoxCacheAdapter<TVariables>;
 
 	#eventTarget = new EventTarget();
 
