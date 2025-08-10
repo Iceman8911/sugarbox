@@ -7,7 +7,6 @@
 
 import { PRNG } from "@iceman8911/tiny-prng";
 import { compress, decompress } from "@zalari/string-compression-utils";
-import { parse, registerCustom, stringify } from "superjson";
 import type { ReadonlyDeep } from "type-fest";
 import type { SugarBoxCacheAdapter } from "../types/adapters";
 import type {
@@ -22,13 +21,15 @@ import type {
 	SugarBoxSaveKey,
 	SugarBoxSettingsKey,
 } from "../types/if-engine";
-import type {
-	SugarBoxCompatibleClassConstructor,
-	SugarBoxCompatibleClassInstance,
-} from "../types/userland-classes";
+import type { SugarBoxCompatibleClassConstructor } from "../types/userland-classes";
 import { clone } from "../utils/clone";
 import { isStringJsonObjectOrCompressedString } from "../utils/compression";
 import { makeImmutable } from "../utils/mutability";
+import {
+	deserialize as parse,
+	registerClass,
+	serialize as stringify,
+} from "../utils/serializer";
 import {
 	isSaveCompatibleWithEngine,
 	type SugarBoxSemanticVersionString,
@@ -621,34 +622,7 @@ class SugarboxEngine<
 		...customClasses: SugarBoxCompatibleClassConstructor<unknown, unknown>[]
 	): void {
 		customClasses.forEach((customClass) => {
-			registerCustom<SugarBoxCompatibleClassInstance<unknown, unknown>, string>(
-				{
-					deserialize: (serializedString) => {
-						try {
-							const classInstance = customClass.__fromJSON(
-								parse(serializedString),
-							);
-
-							return classInstance;
-						} catch {
-							throw new Error(
-								`Failed to deserialize class instance of "${customClass.__classId}" from string: "${serializedString}"`,
-							);
-						}
-					},
-
-					isApplicable: (
-						possibleClass,
-					): possibleClass is SugarBoxCompatibleClassInstance<
-						unknown,
-						unknown
-					> => possibleClass instanceof customClass,
-
-					serialize: (instance) => stringify(instance.__toJSON()),
-				},
-
-				customClass.__classId,
-			);
+			registerClass(customClass);
 		});
 	}
 

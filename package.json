@@ -68,7 +68,6 @@
 	"license": "MIT",
 	"dependencies": {
 		"@iceman8911/tiny-prng": "^0.1.2",
-		"@zalari/string-compression-utils": "^0.1.1",
-		"superjson": "^2.2.2"
+		"@zalari/string-compression-utils": "^0.1.1"
 	}
 }

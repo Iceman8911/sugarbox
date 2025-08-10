@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { registerClass } from "superjson";
 import { clone } from "../../src/utils/clone";
 import { makeImmutable, makeMutable } from "../../src/utils/mutability";
+import { registerClass } from "../../src/utils/serializer";
 
-// Define a simple custom class for testing superjson compatibility
+// Define a simple custom class for testing devalue compatibility
 class TestCustomClass {
 	value: string;
 
@@ -11,23 +11,23 @@ class TestCustomClass {
 		this.value = value;
 	}
 
-	// Required for SuperJSON
-	toJSON() {
+	// Required for devalue serializer
+	__toJSON() {
 		return { value: this.value };
 	}
 
-	// Required for SuperJSON
-	static fromJSON(json: { value: string }) {
+	// Required for devalue serializer
+	static __fromJSON(json: { value: string }) {
 		return new TestCustomClass(json.value);
 	}
-	static __superjson_type = "TestCustomClass";
+	static __classId = "TestCustomClass";
 
 	greet() {
 		return `Hello, ${this.value}!`;
 	}
 }
 
-// Register the custom class with SuperJSON
+// Register the custom class with serializer
 registerClass(TestCustomClass);
 
 describe("Utility Functions", () => {
@@ -92,11 +92,37 @@ describe("Utility Functions", () => {
 			const obj: Circular = { a: 1, b: null };
 			obj.b = obj; // Create circular reference
 
-			// SuperJSON should handle this, but if it fails, structuredClone will catch it.
+			// devalue should handle this, but if it fails, structuredClone will catch it.
 			const clonedObj = clone(obj);
 			expect(clonedObj).toEqual(obj);
 			expect(clonedObj).not.toBe(obj);
 			expect(clonedObj.b).toBe(clonedObj); // Cloned object should also have a circular reference
+		});
+
+		test("should deep clone objects containing RegExp", () => {
+			const regex = /test[0-9]+/gi;
+			const obj = { pattern: regex, name: "test" };
+
+			const clonedObj = clone(obj);
+
+			expect(clonedObj).toEqual(obj);
+			expect(clonedObj).not.toBe(obj);
+			expect(clonedObj.pattern).not.toBe(regex);
+			expect(clonedObj.pattern).toBeInstanceOf(RegExp);
+			expect(clonedObj.pattern.source).toBe(regex.source);
+			expect(clonedObj.pattern.flags).toBe(regex.flags);
+		});
+
+		test("should deep clone objects containing BigInt", () => {
+			const bigNum = 9007199254740991n;
+			const obj = { value: bigNum, name: "large number" };
+
+			const clonedObj = clone(obj);
+
+			expect(clonedObj).toEqual(obj);
+			expect(clonedObj).not.toBe(obj);
+			expect(clonedObj.value).toBe(bigNum);
+			expect(typeof clonedObj.value).toBe("bigint");
 		});
 	});
 

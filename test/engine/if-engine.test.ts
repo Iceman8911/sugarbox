@@ -806,9 +806,7 @@ describe("Custom Classes", () => {
 			}
 			static __fromJSON(data: { name: string }) {
 				const c = new Unregistered();
-
 				c.name = data.name;
-
 				return c;
 			}
 			static __classId = "Unregistered";
@@ -824,11 +822,70 @@ describe("Custom Classes", () => {
 		await engine.loadFromSaveSlot(1);
 
 		// @ts-expect-error
-		expect(engine.vars.unregistered).toBeDefined();
-
-		// It becomes a plain object, not an instance of Unregistered.
+		expect(engine.vars.unregistered.name).toBe("unregistered");
 		// @ts-expect-error
-		expect(typeof engine.vars.unregistered.iExist).toBe("undefined");
+		expect(engine.vars.unregistered.iExist).toBeUndefined();
+	});
+
+	test("RegExp and BigInt should work in save/load", async () => {
+		// Set up test data with RegExp and BigInt
+		engine.setVars((s) => {
+			// @ts-expect-error
+			s.patterns = {
+				nameValidator: /^[A-Za-z\s]+$/,
+				emailPattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/gi,
+			};
+			// @ts-expect-error
+			s.largeNumbers = {
+				score: 9007199254740991n,
+				currency: 123456789012345678901234567890n,
+			};
+		});
+
+		await engine.saveToSaveSlot(1);
+
+		// Modify the values to ensure they're actually loaded
+		engine.setVars((s) => {
+			// @ts-expect-error
+			s.patterns.nameValidator = /different/;
+			// @ts-expect-error
+			s.patterns.emailPattern = /another/;
+			// @ts-expect-error
+			s.largeNumbers.score = 0n;
+			// @ts-expect-error
+			s.largeNumbers.currency = 1n;
+		});
+
+		await engine.loadFromSaveSlot(1);
+
+		// Check RegExp restoration
+		// @ts-expect-error
+		expect(engine.vars.patterns.nameValidator).toBeInstanceOf(RegExp);
+		// @ts-expect-error
+		expect(engine.vars.patterns.nameValidator.source).toBe("^[A-Za-z\\s]+$");
+		// @ts-expect-error
+		expect(engine.vars.patterns.nameValidator.flags).toBe("");
+
+		// @ts-expect-error
+		expect(engine.vars.patterns.emailPattern).toBeInstanceOf(RegExp);
+		// @ts-expect-error
+		expect(engine.vars.patterns.emailPattern.source).toBe(
+			"\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b",
+		);
+		// @ts-expect-error
+		expect(engine.vars.patterns.emailPattern.flags).toBe("gi");
+
+		// Check BigInt restoration
+		// @ts-expect-error
+		expect(typeof engine.vars.largeNumbers.score).toBe("bigint");
+		// @ts-expect-error
+		expect(engine.vars.largeNumbers.score).toBe(9007199254740991n);
+		// @ts-expect-error
+		expect(typeof engine.vars.largeNumbers.currency).toBe("bigint");
+		// @ts-expect-error
+		expect(engine.vars.largeNumbers.currency).toBe(
+			123456789012345678901234567890n,
+		);
 	});
 });
 
