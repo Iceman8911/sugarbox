@@ -1,6 +1,6 @@
 {
 	"name": "sugarbox",
-	"description": "A typescript library",
+	"description": "A TypeScript library for creating interactive fiction with state management, save/load functionality, and deterministic random number generation",
 	"version": "0.1.0",
 	"type": "module",
 	"files": [

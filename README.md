@@ -1,13 +1,18 @@
 # Sugarbox
 
-Loosely based off *Twine Sugarcube*, **Sugarbox** is a lightweight (~4.5KB), headless, unopionionated, and framework-agnostic library to help with developing web-based interactive fiction.
+Loosely based off *Twine SugarCube*, **Sugarbox** is a lightweight (~4.5KB), headless, unopinionated, and framework-agnostic library to help with developing web-based interactive fiction.
 
 ## Features
-- Easy handling for passage and game state (e.g. Variables).
-- Exposes adapters for saving (both saving and compressing / decompressing save data).
-- Headless and so comes with no restrictions on what the UI can be.
-- Adapter support for url routing.
-- Uses native events for notifying userland on ml when the passage or state changes.
+- Easy handling for passages and game state (variables, history, navigation)
+- Comprehensive save/load system with compression and migration support
+- Deterministic pseudorandom number generation (PRNG) for reproducible gameplay
+- Custom class serialization support for complex game objects
+- Achievements and settings persistence separate from save data
+- State history with undo/redo functionality
+- Headless design with no UI restrictions
+- Event-driven architecture for state and passage changes
+- TypeScript-first with full type safety
+- Framework-agnostic (works with React, Vue, vanilla JS, etc.)
 
 ## Installation
 
@@ -85,7 +90,7 @@ const engine = await SugarboxEngine.init({
   settings: { volume: 0.5 },
   migrations: [
     {
-      from: new SugarBoxSemanticVersion(0, 1, 0),
+      from: "0.1.0",
       data: {
         to: "0.2.0",
         migrater: (oldState) => ({ ...oldState, newVar: 0 })
@@ -105,8 +110,8 @@ The `config` object lets you control engine behavior. All options are optional; 
   *Default: 1*
 - `saveSlots` (number): Maximum number of save slots.
   *Default: 20*
-- `saveVersion` (SemanticVersion): Version to tag new saves with.
-  *Default: 0.0.1*
+- `saveVersion` (string): Semantic version string to tag new saves with (format: "major.minor.patch").
+  *Default: "0.0.1"*
 - `saveCompatibilityMode` ("strict" | "liberal"): How strictly to check save version compatibility.
   *Default: "strict"*
 - `autoSave` ("passage" | "state" | false): Auto-save on passage navigation or state change.
@@ -128,7 +133,7 @@ config: {
   maxStateCount: 50,
   stateMergeCount: 2,
   saveSlots: 5,
-  saveVersion: new SugarBoxSemanticVersion(1, 0, 0),
+  saveVersion: "1.0.0",
   saveCompatibilityMode: "liberal",
   autoSave: "state",
   loadOnStart: false,
@@ -275,13 +280,22 @@ const engine = await SugarboxEngine.init({
 If you change your story's state structure, you can register migration functions to update old saves:
 
 ```typescript
-engine.registerMigrators({
-  from: new SugarBoxSemanticVersion(0, 1, 0),
-  data: {
-    to: "0.2.0",
-    migrater: (oldState) => ({ ...oldState, newField: 0 })
+engine.registerMigrators(
+  {
+    from: "0.1.0",
+    data: {
+      to: "0.2.0",
+      migrater: (oldState) => ({ ...oldState, newField: 0 })
+    }
+  },
+  {
+    from: "0.2.0",
+    data: {
+      to: "0.3.0",
+      migrater: (oldState) => ({ ...oldState, anotherField: true })
+    }
   }
-});
+);
 ```
 Or pass them to `init` via the `migrations` array.
 
@@ -451,6 +465,7 @@ Sugarbox emits several custom events you can listen to with `on()`:
 - `:stateChange` — Fired when the state changes.
 - `:saveStart` / `:saveEnd` — Fired before/after a save.
 - `:loadStart` / `:loadEnd` — Fired before/after a load.
+- `:migrationStart` / `:migrationEnd` — Fired before/after save migration operations.
 
 Example:
 ```typescript
@@ -481,6 +496,7 @@ Here’s a quick overview of the main methods and properties:
 | `registerMigrators(...m)` | Register save migration handlers |
 | `saveToSaveSlot(slot?)` | Save to a slot (async) |
 | `loadFromSaveSlot(slot?)` | Load from a slot (async) |
+| `loadRecentSave()`      | Load the most recent save (async) |
 | `getSaves()`            | Async generator for all saves |
 | `saveToExport()`        | Export save as string (async) |
 | `loadFromExport(str)`   | Load save from string (async) |
@@ -650,5 +666,62 @@ MIT
 
 ---
 
-**TypeScript Support:**
+## TypeScript Support
+
 Sugarbox is written in TypeScript and provides full type definitions for all public APIs. Using TypeScript is highly recommended for the best experience.
+
+### Exported Types
+
+The library exports several useful types for TypeScript users:
+
+```typescript
+import { 
+  SugarboxEngine, 
+  type SugarBoxConfig 
+} from "sugarbox";
+
+// Main configuration type
+const config: SugarBoxConfig = {
+  maxStateCount: 100,
+  saveSlots: 10,
+  // ... other options
+};
+
+// Engine instance is fully typed
+const engine = await SugarboxEngine.init({
+  name: "MyGame",
+  variables: { score: 0, level: 1 }, // This will be inferred
+  startPassage: { name: "start", passage: "Welcome!" },
+  otherPassages: [],
+  config
+});
+
+// Variables are type-safe
+engine.setVars((state) => {
+  state.score += 10; // TypeScript knows 'score' exists and is a number
+  // state.nonExistent = 5; // This would be a TypeScript error
+});
+```
+
+For custom classes, implement the required interfaces:
+
+```typescript
+import type { 
+  SugarBoxCompatibleClassInstance,
+  SugarBoxCompatibleClassConstructor 
+} from "sugarbox";
+
+class Player implements SugarBoxCompatibleClassInstance<PlayerData> {
+  static __classId = "Player";
+  
+  __toJSON(): PlayerData {
+    return { name: this.name, level: this.level };
+  }
+  
+  static __fromJSON(data: PlayerData): Player {
+    const player = new Player();
+    Object.assign(player, data);
+    return player;
+  }
+}
+```
