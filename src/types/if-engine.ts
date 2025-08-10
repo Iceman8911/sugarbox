@@ -1,3 +1,4 @@
+import type { SugarBoxSemanticVersionString } from "../utils/version";
 import type {
 	SugarBoxCacheAdapter,
 	SugarBoxPersistenceAdapter,
@@ -64,12 +65,8 @@ type SugarBoxSaveData<
 	/** Total play time in seconds. TODO */
 	// playtimeInSeconds: number;
 
-	/** The version of the story associated with this save. TODO */
-	// storyVersion: {
-	// 	major: number;
-	// 	minor: number;
-	// 	patch: number;
-	// };
+	/** The version of the story associated with this save */
+	saveVersion: SugarBoxSemanticVersionString;
 }>;
 
 /** Export data structure used for saving the state of the engine to disk.
@@ -93,6 +90,11 @@ type SugarBoxExportData<
 	achievements: TAchievementData;
 };
 
+/**
+ * Decides how the compability of saves and the engine is calculated
+ */
+type SugarBoxSaveVersionCompatiblityMode = "strict" | "liberal";
+
 type SugarBoxConfig<
 	TStructure extends Record<string, unknown> = Record<string, unknown>,
 > = {
@@ -110,6 +112,22 @@ type SugarBoxConfig<
 	 */
 	saveSlots: number;
 
+	/** Semantic version to use for all newly created saves by the engine. Also acts as a reference point for the engine to determine if a previous save is compatible with the current version of the story.
+	 *
+	 */
+	saveVersion: SugarBoxSemanticVersionString;
+
+	/**
+	 * Determines how strict the engine will be when deciding if a save is compatible the the current engine's version.
+	 *
+	 * If set to `strict`, the engine will only consider saves that only differ by the `patch` version as the current engine's version as compatible.
+	 *
+	 * If set to `liberal`, the engine will only consider saves that differ by the `patch` version, and have a lower or equal `minor` version as compatible.
+	 *
+	 * @default "strict"
+	 */
+	saveCompatibilityMode: SugarBoxSaveVersionCompatiblityMode;
+
 	/** If set to `passage`, the story variables are saved on every passage navigation to a special save slot
 	 *
 	 * If set to `state`, the story variables are saved on every state change (i.e when a variable is changed) to a special save slot
@@ -124,6 +142,12 @@ type SugarBoxConfig<
 	 * @default true
 	 */
 	loadOnStart: boolean;
+
+	/** Determines whether or not save data will be compresses.
+	 *
+	 * @default true
+	 */
+	compressSave: boolean;
 
 	/** Intial seed for predictable rng.
 	 *
@@ -174,4 +198,5 @@ export type {
 	SugarBoxSettingsKey,
 	SugarBoxPassage,
 	SugarBoxAutoSaveKey,
+	SugarBoxSaveVersionCompatiblityMode,
 };

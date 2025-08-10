@@ -1,7 +1,7 @@
 {
 	"name": "sugarbox",
-	"description": "A typescript library",
-	"version": "0.1.0",
+	"description": "A TypeScript library for creating interactive fiction with state management, save/load functionality, and deterministic random number generation",
+	"version": "0.1.1",
 	"type": "module",
 	"files": [
 		"dist"
@@ -40,6 +40,7 @@
 		"@biomejs/biome": "^2.1.3",
 		"@commitlint/cli": "^19.8.1",
 		"@commitlint/config-conventional": "^19.8.1",
+		"@stardazed/streams-polyfill": "^2.4.0",
 		"@types/bun": "^1.2.19",
 		"bumpp": "^10.2.1",
 		"bunup": "^0.9.1",
@@ -67,6 +68,6 @@
 	"license": "MIT",
 	"dependencies": {
 		"@iceman8911/tiny-prng": "^0.1.2",
-		"superjson": "^2.2.2"
+		"@zalari/string-compression-utils": "^0.1.1"
 	}
 }

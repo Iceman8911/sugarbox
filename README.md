@@ -1,13 +1,18 @@
 # Sugarbox
 
-Loosely based off *Twine Sugarcube*, **Sugarbox** is a lightweight, headless, unopionionated, and framework-agnostic library to help with developing web-based interactive fiction.
+Loosely based off *Twine SugarCube*, **Sugarbox** is a lightweight (~4.5KB), headless, unopinionated, and framework-agnostic library to help with developing web-based interactive fiction.
 
 ## Features
-- Easy handling for passage and game state (e.g. Variables).
-- Exposes adapters for saving (both saving and compressing / decompressing save data).
-- Headless and so comes with no restrictions on what the UI can be.
-- Adapter support for url routing.
-- Uses native events for notifying userland on ml when the passage or state changes.
+- Easy handling for passages and game state (variables, history, navigation)
+- Comprehensive save/load system with compression and migration support
+- Deterministic pseudorandom number generation (PRNG) for reproducible gameplay
+- Custom class serialization support for complex game objects
+- Achievements and settings persistence separate from save data
+- State history with undo/redo functionality
+- Headless design with no UI restrictions
+- Event-driven architecture for state and passage changes
+- TypeScript-first with full type safety
+- Framework-agnostic (works with React, Vue, vanilla JS, etc.)
 
 ## Installation
 
@@ -18,28 +23,37 @@ npm install sugarbox
 ## Usage
 
 ```typescript
-import { SugarboxEngine } from 'sugarbox';
+import { SugarboxEngine } from "sugarbox";
 
-const engine = SugarboxEngine.init({
-	name: "Test",
-	passages: [["Test Passage Name", "Lorem Ipsum Dolomet"], ["Other Passage Name", "More Dummy Text"]],
-	variables: { name: "Dave", inventory: { gold: 123, gems: 12 } },
+// Passages must be objects with a unique name and the passage data
+const startPassage = { name: "Test Passage Name", passage: "Lorem Ipsum Dolomet" };
+const otherPassages = [
+  { name: "Other Passage Name", passage: "More Dummy Text" }
+];
+
+const engine = await SugarboxEngine.init({
+  name: "Test",
+  variables: { name: "Dave", inventory: { gold: 123, gems: 12 } },
+  startPassage,
+  otherPassages,
+  // Optionally, you can pass config, classes, achievements, settings, migrations, etc.
 });
 
 engine.setVars((state) => {
-	state.name = "Sheep";
-
-	state.inventory.gems = 21;
+  state.name = "Sheep";
+  state.inventory.gems = 21;
 });
 
-engine.navigateTo("Other Passage Name")
+engine.navigateTo("Other Passage Name");
 ```
+
+See below for more on initialization options and configuration.
 
 ## Passages
 
 A passage can be anything from a string like markdown or html syntax, to objects like JSX components; just be consistent and pick a format. The only data the engine requires are the passage's id / name (which must be unique across all passages that will be added) and the data for the actual passage. Note that, the engine does not handle any rendering so it's up to you to decide how the data should be rendered.
 
-Passages can be passed to the engine during intialization via `startPassage` and `otherPassages` properties in the parameter object. The former denotes the intial passage to start on, while the other takes an array of any other passages; it's advised to pass all critically needed passages here. Other passages can still be added via the engine's method, `addPassages()` which can take an unlimited amount of paramaters.
+Passages can be passed to the engine during initialization via `startPassage` and `otherPassages` properties in the parameter object. The former denotes the initial passage to start on, while the latter takes an array of any other passages; it's advised to pass all critically needed passages here. Other passages can still be added via the engine's method, `addPassages()` which can take an unlimited amount of parameters.
 
 The current passage and it's id / name can be obtained via the getters, `passage` and `passageId`.
 
@@ -48,6 +62,87 @@ The current passage and it's id / name can be obtained via the getters, `passage
 To move forward and access different passages, the `navigateTo(passageId: string)` method should be used.
 
 Upon navigation, a custom `:passageChange` event will be fired by the engine, and can be listened to via the `on()` method. This event contains the passage data for both the old and new passages.
+
+## Engine Initialization Options
+
+The `SugarboxEngine.init` method accepts an object with the following properties:
+
+- `name` (string): Unique name for your engine instance (used for saves, etc).
+- `variables` (object): The initial state variables.
+- `startPassage` (object): The starting passage, must have a unique `name` and `passage` data.
+- `otherPassages` (array): Additional passages to preload.
+- `config` (object, optional): Configuration options (see below).
+- `classes` (array, optional): Custom classes to register for serialization.
+- `achievements` (object, optional): Initial achievements data.
+- `settings` (object, optional): Initial settings data.
+- `migrations` (array, optional): Save migration handlers.
+
+Example:
+```typescript
+const engine = await SugarboxEngine.init({
+  name: "MyStory",
+  variables: { ... },
+  startPassage: { name: "Intro", passage: "Welcome!" },
+  otherPassages: [ ... ],
+  config: { maxStateCount: 50, saveSlots: 10 },
+  classes: [MyCustomClass],
+  achievements: { foundSecret: false },
+  settings: { volume: 0.5 },
+  migrations: [
+    {
+      from: "0.1.0",
+      data: {
+        to: "0.2.0",
+        migrater: (oldState) => ({ ...oldState, newVar: 0 })
+      }
+    }
+  ]
+});
+```
+
+## Configuration Options
+
+The `config` object lets you control engine behavior. All options are optional; defaults are shown below.
+
+- `maxStateCount` (number): Maximum number of state snapshots to keep before merging old ones.
+  *Default: 100*
+- `stateMergeCount` (number): Number of snapshots to merge when the state history fills up.
+  *Default: 1*
+- `saveSlots` (number): Maximum number of save slots.
+  *Default: 20*
+- `saveVersion` (string): Semantic version string to tag new saves with (format: "major.minor.patch").
+  *Default: "0.0.1"*
+- `saveCompatibilityMode` ("strict" | "liberal"): How strictly to check save version compatibility.
+  *Default: "strict"*
+- `autoSave` ("passage" | "state" | false): Auto-save on passage navigation or state change.
+  *Default: false*
+- `loadOnStart` (boolean): Load the most recent save automatically on engine init.
+  *Default: true*
+- `compressSave` (boolean): Whether to compress save data using gzip.
+  *Default: true*
+- `initialSeed` (number): Initial PRNG seed (0 to 2^32-1).
+  *Default: random*
+- `regenSeed` ("passage" | "eachCall" | false): When to regenerate the PRNG seed.
+  *Default: "passage"*
+- `cache` (adapter): Optional cache adapter for state snapshots.
+- `persistence` (adapter): Optional persistence adapter for saving/loading.
+
+Example:
+```typescript
+config: {
+  maxStateCount: 50,
+  stateMergeCount: 2,
+  saveSlots: 5,
+  saveVersion: "1.0.0",
+  saveCompatibilityMode: "liberal",
+  autoSave: "state",
+  loadOnStart: false,
+  initialSeed: 12345,
+  regenSeed: "eachCall",
+  cache: myCacheAdapter,
+  persistence: myPersistenceAdapter
+}
+```
 
 ## How the "State" Works
 
@@ -99,11 +194,118 @@ Navigating to a new passage (which moves the index forward) whilist backwards in
 
 All custom classes that are stored in the story's state must conform to the type interfaces; `SugarBoxCompatibleClassInstance` and `SugarBoxCompatibleClassConstructor`, and also have the class constructor itself registered in the engine via `registerClasses(Class1, Class2, ..., ClassN)`. This is so that they can be cloned and serialized.
 
+### Supported Data Types for Serialization
+
+The engine's serialization system supports the following data types in your story variables:
+
+**✅ Fully Supported:**
+- Primitives: `number`, `string`, `boolean`, `null`, `undefined`
+- `Array`
+- Plain `Object`
+- Custom classes (with `__toJSON`/`__fromJSON` methods)
+- `Date` objects
+- `Set` objects
+- `Map` objects
+- `RegExp` objects
+- `BigInt`
+
+**❌ Not Supported:**
+- `Symbol`
+- `Function`
+- `WeakMap` / `WeakSet`
+- `TypedArray` (`Int8Array`, `Uint8Array`, etc.)
+- `ArrayBuffer` / `SharedArrayBuffer`
+- `Error` objects
+- `URL` objects
+- Circular references
+
+If you need to store unsupported types, consider converting them to supported formats (e.g., functions to strings, or Error objects to plain objects with error details).
+
+Example:
+```typescript
+class Player {
+  // ... implement __toJSON, static __fromJSON, static __classId ...
+}
+engine.registerClasses(Player);
+```
+Or, if using `init`:
+```typescript
+const engine = await SugarboxEngine.init({
+  // ...
+  classes: [Player]
+});
+```
+
+## Achievements and Settings
+
+Sugarbox supports persistent achievements and settings, which are not tied to a specific save slot.
+
+**Note:** Achievements and settings are not compressed at the moment.
+
+To update achievements:
+```typescript
+await engine.setAchievements((ach) => {
+  ach.foundSecret = true;
+});
+```
+
+To update settings:
+```typescript
+await engine.setSettings((settings) => {
+  settings.volume = 0.8;
+});
+```
+
+Both methods accept a callback that can mutate or return a new object. The data will be persisted if a persistence adapter is configured.
+
+## Cache Adapter
+
+For large or complex stories, recalculating state from all snapshots can be expensive. You can provide a cache adapter to speed up state fetching:
+
+```typescript
+const cacheAdapter = {
+  set(key, data) { /* ... */ },
+  get(key) { /* ... */ },
+  delete(key) { /* ... */ },
+  clear() { /* ... */ }
+};
+const engine = await SugarboxEngine.init({
+  // ...
+  config: { cache: cacheAdapter }
+});
+```
+
+## Save Migration
+
+If you change your story's state structure, you can register migration functions to update old saves:
+
+```typescript
+engine.registerMigrators(
+  {
+    from: "0.1.0",
+    data: {
+      to: "0.2.0",
+      migrater: (oldState) => ({ ...oldState, newField: 0 })
+    }
+  },
+  {
+    from: "0.2.0",
+    data: {
+      to: "0.3.0",
+      migrater: (oldState) => ({ ...oldState, anotherField: true })
+    }
+  }
+);
+```
+Or pass them to `init` via the `migrations` array.
+
 ## Saving and Loading
 
 Sugarbox provides two main mechanisms for saving and loading game progress: using storage-backed **save slots** for quick, persistent saves, and **exporting/importing** for manual backups or transferring saves between devices.
 
 ### Persistence Configuration
+
+> **Note:** Save data is compressed by default. The engine will auto-detect and decompress as needed when loading, so you do not need to handle this manually.
 
 To use save slots, you must first provide a `persistence` adapter in the engine's configuration. This adapter is responsible for the actual reading and writing of save data to a storage medium like `localStorage`, `sessionStorage`, or even a remote database.
 
@@ -134,6 +336,49 @@ const engine = await SugarboxEngine.init({
 	},
 });
 ```
+
+## Save Compression
+
+Sugarbox supports transparent compression and decompression of save data to minimize storage usage. By default, all save data (including save slots and exported saves) is compressed using the `gzip` format.
+
+### How It Works
+
+- **Compression**: When saving (either to a slot or exporting), the engine serializes the game state and, if `compressSave` is enabled in the config (default: `true`), compresses the string before storing it.
+- **Decompression**: When loading, the engine automatically detects if the data is compressed and decompresses it as needed. This is seamless for both save slots and imported/exported saves.
+- **Format**: The default compression format is `gzip`, chosen for its wide support and efficiency.
+
+### Configuration
+
+You can control compression behavior via the `compressSave` option in the engine config:
+
+```typescript
+const engine = await SugarboxEngine.init({
+  // ...
+  config: {
+    compressSave: true, // Enable (default) or disable save compression
+  }
+});
+```
+
+- Setting `compressSave: false` will store all saves as plain (uncompressed) JSON strings.
+
+### Advanced
+
+- Compression and decompression are handled internally using the [`@zalari/string-compression-utils`](https://www.npmjs.com/package/@zalari/string-compression-utils) package.
+- The engine will always auto-detect and decompress save data, so you can safely mix compressed and uncompressed saves.
+- Exported save strings are also compressed if `compressSave` is enabled.
+
+#### Example: Exporting and Importing with Compression
+
+```typescript
+// Export (compressed by default)
+const exportData = await engine.saveToExport();
+
+// Import (auto-detects compression)
+await engine.loadFromExport(exportData);
+```
+
+---
 
 ### Save Slots
 
@@ -168,6 +413,8 @@ Save slots are numbered locations where the game state can be stored. A maximum 
     ```
 
 ### Exporting and Importing
+
+> **Note:** Exported save strings are compressed by default if `compressSave` is enabled. The engine will auto-detect and decompress imported data.
 
 This method allows you to get a serialized string of the entire game state, which the player can copy and save manually, or have downloaded for use later.
 
@@ -208,6 +455,58 @@ The available events are:
 * `:saveEnd`: Fired after a save operation completes. The `detail` contains a discriminated union denoting whether the operation was successful or not. If not successful, an error is also returned.
 * `:loadStart`: Fired just before a load operation begins. The `detail` is null.
 * `:loadEnd`: Fired after a load operation completes. The `detail` contains a discriminated union denoting whether the operation was successful or not. If not successful, an error is also returned
+* `:migrationStart`: Fired just before a save migration operation begins. The `detail` contains the current save version that is to be migrated.
+* `:migrationEnd`: Fired after a save migration operation completes. The `detail` contains a discriminated union denoting whether the operation was successful or not, as well as the intial and final save versions. If not successful, an error is also returned.
+
+## Events
+
+Sugarbox emits several custom events you can listen to with `on()`:
+
+- `:passageChange` — Fired when the passage changes.
+- `:stateChange` — Fired when the state changes.
+- `:saveStart` / `:saveEnd` — Fired before/after a save.
+- `:loadStart` / `:loadEnd` — Fired before/after a load.
+- `:migrationStart` / `:migrationEnd` — Fired before/after save migration operations.
+
+Example:
+```typescript
+engine.on(":passageChange", (e) => {
+  console.log("Passage changed!", e.detail);
+});
+```
+
+## API Reference
+
+Here’s a quick overview of the main methods and properties:
+
+| Method / Getter         | Description |
+|------------------------ |------------|
+| `vars`                  | Get current state variables (readonly) |
+| `setVars(fn)`           | Update state variables (immer-style) |
+| `passageId`             | Get current passage id |
+| `passage`               | Get current passage data |
+| `index`                 | Get current position in state history |
+| `forward(steps?)`       | Move forward in state history |
+| `backward(steps?)`      | Move backward in state history |
+| `addPassage(id, data)`  | Add a single passage |
+| `addPassages(arr)`      | Add multiple passages |
+| `navigateTo(id)`        | Move to a passage |
+| `on(event, fn)`         | Listen for an event |
+| `off(event, fn)`        | Remove event listener |
+| `registerClasses(...c)` | Register custom classes for serialization |
+| `registerMigrators(...m)` | Register save migration handlers |
+| `saveToSaveSlot(slot?)` | Save to a slot (async) |
+| `loadFromSaveSlot(slot?)` | Load from a slot (async) |
+| `loadRecentSave()`      | Load the most recent save (async) |
+| `getSaves()`            | Async generator for all saves |
+| `saveToExport()`        | Export save as string (async) |
+| `loadFromExport(str)`   | Load save from string (async) |
+| `achievements`          | Get achievements (readonly) |
+| `setAchievements(fn)`   | Update achievements (async) |
+| `settings`              | Get settings (readonly) |
+| `setSettings(fn)`       | Update settings (async) |
+| `random`                | Get a deterministic random number |
+| `name`                  | Engine name (readonly) |
 
 ## Random Number Generation (PRNG)
 
@@ -365,3 +664,65 @@ Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines.
 ## License
 
 MIT
+
+---
+
+## TypeScript Support
+
+Sugarbox is written in TypeScript and provides full type definitions for all public APIs. Using TypeScript is highly recommended for the best experience.
+
+### Exported Types
+
+The library exports several useful types for TypeScript users:
+
+```typescript
+import {
+  SugarboxEngine,
+  type SugarBoxConfig
+} from "sugarbox";
+
+// Main configuration type
+const config: SugarBoxConfig = {
+  maxStateCount: 100,
+  saveSlots: 10,
+  // ... other options
+};
+
+// Engine instance is fully typed
+const engine = await SugarboxEngine.init({
+  name: "MyGame",
+  variables: { score: 0, level: 1 }, // This will be inferred
+  startPassage: { name: "start", passage: "Welcome!" },
+  otherPassages: [],
+  config
+});
+
+// Variables are type-safe
+engine.setVars((state) => {
+  state.score += 10; // TypeScript knows 'score' exists and is a number
+  // state.nonExistent = 5; // This would be a TypeScript error
+});
+```
+
+For custom classes, implement the required interfaces:
+
+```typescript
+import type {
+  SugarBoxCompatibleClassInstance,
+  SugarBoxCompatibleClassConstructor
+} from "sugarbox";
+
+class Player implements SugarBoxCompatibleClassInstance<PlayerData> {
+  static __classId = "Player";
+
+  __toJSON(): PlayerData {
+    return { name: this.name, level: this.level };
+  }
+
+  static __fromJSON(data: PlayerData): Player {
+    const player = new Player();
+    Object.assign(player, data);
+    return player;
+  }
+}
+```

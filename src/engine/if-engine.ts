@@ -6,7 +6,7 @@
 // - The current state snapshot is the last state in the list, which is mutable.
 
 import { PRNG } from "@iceman8911/tiny-prng";
-import { parse, registerCustom, stringify } from "superjson";
+import { compress, decompress } from "@zalari/string-compression-utils";
 import type { ReadonlyDeep } from "type-fest";
 import type { SugarBoxCacheAdapter } from "../types/adapters";
 import type {
@@ -21,15 +21,24 @@ import type {
 	SugarBoxSaveKey,
 	SugarBoxSettingsKey,
 } from "../types/if-engine";
-import type {
-	SugarBoxCompatibleClassConstructor,
-	SugarBoxCompatibleClassInstance,
-} from "../types/userland-classes";
+import type { SugarBoxCompatibleClassConstructor } from "../types/userland-classes";
 import { clone } from "../utils/clone";
+import { isStringJsonObjectOrCompressedString } from "../utils/compression";
 import { makeImmutable } from "../utils/mutability";
+import {
+	deserialize as parse,
+	registerClass,
+	serialize as stringify,
+} from "../utils/serializer";
+import {
+	isSaveCompatibleWithEngine,
+	type SugarBoxSemanticVersionString,
+} from "../utils/version";
 
 const defaultConfig = {
 	autoSave: false,
+
+	compressSave: true,
 
 	loadOnStart: true,
 
@@ -39,12 +48,18 @@ const defaultConfig = {
 
 	stateMergeCount: 1,
 
+	saveCompatibilityMode: "strict",
+
 	saveSlots: 20,
+
+	saveVersion: `0.0.1`,
 } as const satisfies SugarBoxConfig;
 
 const MINIMUM_SAVE_SLOT_INDEX = 0;
 
 const MINIMUM_SAVE_SLOTS = 1;
+
+const SAVE_COMPRESSION_FORMAT = "gzip" satisfies CompressionFormat;
 
 type StateWithMetadata<TVariables extends Record<string, unknown>> =
 	TVariables & SugarBoxMetadata;
@@ -52,10 +67,6 @@ type StateWithMetadata<TVariables extends Record<string, unknown>> =
 type SnapshotWithMetadata<TVariables extends Record<string, unknown>> = Partial<
 	TVariables & SugarBoxMetadata
 >;
-
-type State<TVariables extends Record<string, unknown>> = TVariables;
-
-type Snapshot<TVariables extends Record<string, unknown>> = Partial<TVariables>;
 
 type Config<TState extends Record<string, unknown>> = Partial<
 	SugarBoxConfig<StateWithMetadata<TState>>
@@ -79,7 +90,7 @@ type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 		newState: TPartialSnapshot;
 	}>;
 
-	":init": null;
+	// ":init": null;
 
 	":saveStart": null;
 
@@ -88,7 +99,51 @@ type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 	":loadStart": null;
 
 	":loadEnd": { type: "success" } | { type: "error"; error: Error };
+
+	":migrationStart": ReadonlyDeep<{
+		fromVersion: SugarBoxSemanticVersionString;
+		toVersion: SugarBoxSemanticVersionString;
+	}>;
+
+	":migrationEnd": ReadonlyDeep<
+		| {
+				type: "success";
+				fromVersion: SugarBoxSemanticVersionString;
+				toVersion: SugarBoxSemanticVersionString;
+		  }
+		| {
+				type: "error";
+				fromVersion: SugarBoxSemanticVersionString;
+				toVersion: SugarBoxSemanticVersionString;
+				error: Error;
+		  }
+	>;
 };
+
+type SugarBoxSaveMigration<
+	TOldSaveStructure,
+	TNewSaveStructure,
+	TNewVersion extends
+		SugarBoxSemanticVersionString = SugarBoxSemanticVersionString,
+> = {
+	/** Version that the save will be set to if the migration function works */
+	to: TNewVersion;
+
+	/** Function to be run on the old save data to migrate it to the given version */
+	migrater: (saveDataToMigrate: TOldSaveStructure) => TNewSaveStructure;
+};
+
+type SugarBoxSaveMigrationMap<
+	TOldSaveStructure,
+	TNewSaveStructure,
+	TOldVersion extends
+		SugarBoxSemanticVersionString = SugarBoxSemanticVersionString,
+	TNewVersion extends
+		SugarBoxSemanticVersionString = SugarBoxSemanticVersionString,
+> = Map<
+	TOldVersion,
+	SugarBoxSaveMigration<TOldSaveStructure, TNewSaveStructure, TNewVersion>
+>;
 
 /** The main engine for Sugarbox that provides headless interface to basic utilities required for Interactive Fiction
  *
@@ -140,6 +195,13 @@ class SugarboxEngine<
 	 */
 	#settings: TSettingsData;
 
+	/** Collection of migration functions to keep old saves up to date
+	 *
+	 * Not sure what types to put here without overcomplicating things
+	 */
+	// biome-ignore lint/suspicious/noExplicitAny: <It'll not be worth defining the types for these>
+	#saveMigrationMap: SugarBoxSaveMigrationMap<any, any> = new Map();
+
 	private constructor(
 		/** Must be unique to prevent conflicts */
 		readonly name: string,
@@ -190,10 +252,13 @@ class SugarboxEngine<
 		TAchievementData extends Record<string, unknown> = Record<string, boolean>,
 		TSettingsData extends Record<string, unknown> = Record<string, unknown>,
 	>(args: {
+		/** Name of the engine. Engines initalized with the same name have access to the same saves, acheivements, and story-specific settings */
 		name: string;
 
+		/** The initial set of variables to be uses as the starting state */
 		variables: TVariables;
 
+		/** Starting passage */
 		startPassage: SugarBoxPassage<TPassageType>;
 
 		/** Critical passages that must be available asap.
@@ -202,7 +267,7 @@ class SugarboxEngine<
 		otherPassages: SugarBoxPassage<TPassageType>[];
 
 		/** So you don't have to manually register classes for proper serialization / deserialization */
-		classes?: SugarBoxCompatibleClassConstructor<unknown, unknown>[];
+		classes?: SugarBoxCompatibleClassConstructor<unknown>[];
 
 		/** Achievements that should persist across saves */
 		achievements?: TAchievementData;
@@ -211,6 +276,15 @@ class SugarboxEngine<
 		settings?: TSettingsData;
 
 		config?: Config<TVariables>;
+
+		/** If the engine had been intialised before with a lower version.
+		 *
+		 * Add migrations to this array to migrate the old save data to the new version.
+		 */
+		migrations?: {
+			from: SugarBoxSemanticVersionString;
+			data: SugarBoxSaveMigration<never, unknown>;
+		}[];
 	}): Promise<
 		SugarboxEngine<TPassageType, TVariables, TAchievementData, TSettingsData>
 	> {
@@ -220,6 +294,7 @@ class SugarboxEngine<
 			startPassage,
 			otherPassages,
 			classes,
+			migrations,
 			variables,
 			achievements = {} as TAchievementData,
 			settings = {} as TSettingsData,
@@ -241,6 +316,8 @@ class SugarboxEngine<
 		);
 
 		engine.registerClasses(...(classes ?? []));
+
+		engine.registerMigrators(...(migrations ?? []));
 
 		const { loadOnStart } = config;
 
@@ -264,7 +341,7 @@ class SugarboxEngine<
 	 *
 	 * May be expensive to calculate depending on the history of the story.
 	 */
-	get vars(): Readonly<State<TVariables>> {
+	get vars(): Readonly<TVariables> {
 		return this.#varsWithMetadata;
 	}
 
@@ -272,12 +349,12 @@ class SugarboxEngine<
 	 *
 	 * Use this **solely** for setting values. If you must read a value, use `this.vars`
 	 *
-	 * **If you need to replace the entire state, *return a new object* (also make sure that undesirable properties are explicitly set to `null` else they'd still be included in the state) instead of directly *assigning the value***
+	 * **If you need to replace the entire state, *return a new object* instead of directly *assigning the value***
 	 */
 	setVars(
 		producer:
-			| ((variables: State<TVariables>) => void)
-			| ((variables: State<TVariables>) => State<TVariables>),
+			| ((variables: TVariables) => void)
+			| ((variables: TVariables) => TVariables),
 	): void {
 		const self = this;
 
@@ -312,11 +389,11 @@ class SugarboxEngine<
 		const possibleValueToUseForReplacing = producer(proxy);
 
 		if (possibleValueToUseForReplacing) {
-			this.#stateSnapshots[self.#index] = {
+			this.#rewriteState({
 				...possibleValueToUseForReplacing,
 				__id: this.passageId,
 				__seed: this.#currentStatePrngSeed,
-			};
+			});
 		}
 
 		// Get the changes and emit them
@@ -542,38 +619,34 @@ class SugarboxEngine<
 
 	/** Any custom classes stored in the story's state must be registered with this */
 	registerClasses(
-		...customClasses: SugarBoxCompatibleClassConstructor<unknown, unknown>[]
+		...customClasses: SugarBoxCompatibleClassConstructor<unknown>[]
 	): void {
 		customClasses.forEach((customClass) => {
-			registerCustom<SugarBoxCompatibleClassInstance<unknown, unknown>, string>(
-				{
-					deserialize: (serializedString) => {
-						try {
-							const classInstance = customClass.__fromJSON(
-								parse(serializedString),
-							);
-
-							return classInstance;
-						} catch {
-							throw new Error(
-								`Failed to deserialize class instance of "${customClass.__classId}" from string: "${serializedString}"`,
-							);
-						}
-					},
-
-					isApplicable: (
-						possibleClass,
-					): possibleClass is SugarBoxCompatibleClassInstance<
-						unknown,
-						unknown
-					> => possibleClass instanceof customClass,
-
-					serialize: (instance) => stringify(instance.__toJSON()),
-				},
-
-				customClass.__classId,
-			);
+			registerClass(customClass);
 		});
+	}
+
+	/** Use this to register custom callbacks for migrating outdated save data
+	 *
+	 * @throws if a migration for the same version already exists
+	 */
+	registerMigrators<TOldSaveStructure, TNewSaveStructure = TVariables>(
+		...migrators: {
+			from: SugarBoxSemanticVersionString;
+			data: SugarBoxSaveMigration<TOldSaveStructure, TNewSaveStructure>;
+		}[]
+	): void {
+		for (const { from, data } of migrators) {
+			const semanticVersionString = from;
+
+			if (this.#saveMigrationMap.has(semanticVersionString)) {
+				throw new Error(
+					`A migration for version ${from} already exists. Cannot register multiple migrations for the same version.`,
+				);
+			}
+
+			this.#saveMigrationMap.set(semanticVersionString, data);
+		}
 	}
 
 	/** Using the provided persistence adapter, this saves all vital data for the combined state, metadata, and current index
@@ -586,7 +659,7 @@ class SugarboxEngine<
 		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
 			"save",
 			async () => {
-				const { persistence } = this.#config;
+				const { persistence, saveVersion, compressSave } = this.#config;
 
 				SugarboxEngine.#assertPersistenceIsAvailable(persistence);
 
@@ -596,11 +669,18 @@ class SugarboxEngine<
 					intialState: this.#initialState,
 					lastPassageId: this.passageId,
 					savedOn: new Date(),
+					saveVersion: saveVersion,
 					snapshots: this.#stateSnapshots,
 					storyIndex: this.#index,
 				};
 
-				await persistence.set(saveKey, stringify(saveData));
+				const stringifiedSaveData = stringify(saveData);
+
+				const dataToStore = compressSave
+					? await compress(stringifiedSaveData, SAVE_COMPRESSION_FORMAT)
+					: stringifiedSaveData;
+
+				await persistence.set(saveKey, dataToStore);
 			},
 		);
 	}
@@ -627,7 +707,10 @@ class SugarboxEngine<
 					throw new Error(`No save data found for slot ${saveSlot}`);
 				}
 
-				this.loadSaveFromData(parse(serializedSaveData));
+				const jsonString =
+					await decompressJsonStringIfCompressed(serializedSaveData);
+
+				this.loadSaveFromData(parse(jsonString));
 			},
 		);
 	}
@@ -637,15 +720,115 @@ class SugarboxEngine<
 	 * This is used to load saves from the `getSaves()` method.
 	 *
 	 * @param save The save data to load
+	 *
+	 * @throws if the save was made on a later version than the engine or if a save migration throws
 	 */
 	loadSaveFromData(save: SugarBoxSaveData<TVariables>): void {
-		const { intialState, snapshots, storyIndex }: SugarBoxSaveData<TVariables> =
-			save;
+		const {
+			intialState,
+			snapshots,
+			storyIndex,
+			saveVersion,
+		}: SugarBoxSaveData<TVariables> = save;
 
-		// Replace the current state
-		this.#initialState = intialState;
-		this.#stateSnapshots = snapshots;
-		this.#index = storyIndex;
+		const { saveCompatibilityMode, saveVersion: engineVersion } = this.#config;
+
+		const saveCompatibility = isSaveCompatibleWithEngine(
+			saveVersion,
+			engineVersion,
+			saveCompatibilityMode,
+		);
+
+		switch (saveCompatibility) {
+			case "compatible": {
+				// Replace the current state
+				this.#initialState = intialState;
+				this.#stateSnapshots = snapshots;
+				this.#index = storyIndex;
+
+				break;
+			}
+
+			case "outdatedSave": {
+				// Temporarily replace the current state
+				const originalInitialState = this.#initialState;
+				const originalStateSnapshots = this.#stateSnapshots;
+				const originalIndex = this.#index;
+
+				this.#initialState = intialState;
+				this.#stateSnapshots = snapshots;
+				this.#index = storyIndex;
+
+				try {
+					let migratedState: StateWithMetadata<TVariables> | null = null;
+
+					let currentSaveVersion = saveVersion;
+
+					while (currentSaveVersion !== engineVersion) {
+						const migratorData = this.#saveMigrationMap.get(currentSaveVersion);
+						if (!migratorData) {
+							throw new Error(
+								`No migrator function found for save version ${currentSaveVersion}. Required to migrate to engine version ${engineVersion}.`,
+							);
+						}
+
+						const { migrater, to } = migratorData;
+
+						this.#emitCustomEvent(":migrationStart", {
+							fromVersion: currentSaveVersion,
+							toVersion: to,
+						});
+
+						try {
+							const currentStateToMigrate =
+								migratedState ?? this.#varsWithMetadata;
+							migratedState = migrater(currentStateToMigrate);
+
+							this.#emitCustomEvent(":migrationEnd", {
+								type: "success",
+								fromVersion: currentSaveVersion,
+								toVersion: to,
+							});
+						} catch (error) {
+							this.#emitCustomEvent(":migrationEnd", {
+								type: "error",
+								fromVersion: currentSaveVersion,
+								toVersion: to,
+								error:
+									error instanceof Error ? error : new Error(String(error)),
+							});
+							throw error;
+						}
+
+						currentSaveVersion = to;
+					}
+
+					// Save migration completed successfully so rewrite the state with it
+					if (migratedState) {
+						this.#rewriteState(migratedState);
+
+						break;
+					}
+
+					throw new Error(
+						`Save with version ${currentSaveVersion} returned null during migration`,
+					);
+				} catch (e) {
+					// Reset any changes since the migration failed
+					this.#initialState = originalInitialState;
+					this.#stateSnapshots = originalStateSnapshots;
+					this.#index = originalIndex;
+
+					// Rethrow
+					throw new Error(e instanceof Error ? e.message : String(e));
+				}
+			}
+			case "newerSave": {
+				throw new Error(
+					`Save with version ${saveVersion} is too new for the engine with version ${engineVersion}`,
+				);
+			}
+		}
 
 		// Clear the state cache since the state has changed
 		this.#stateCache?.clear();
@@ -665,7 +848,9 @@ class SugarboxEngine<
 
 			if (!serializedSaveData) continue;
 
-			const saveData: SugarBoxSaveData<TVariables> = parse(serializedSaveData);
+			const saveData: SugarBoxSaveData<TVariables> = parse(
+				await decompressJsonStringIfCompressed(serializedSaveData),
+			);
 
 			if (key === this.#getSaveKeyFromSaveSlotNumber()) {
 				yield { type: "autosave", data: saveData };
@@ -705,6 +890,8 @@ class SugarboxEngine<
 					saveData: {
 						intialState: this.#initialState,
 						lastPassageId: this.passageId,
+						saveVersion: this.#config.saveVersion,
+
 						savedOn: new Date(),
 						snapshots: this.#stateSnapshots,
 						storyIndex: this.#index,
@@ -713,30 +900,37 @@ class SugarboxEngine<
 					achievements: this.#achievements,
 				};
 
-				return stringify(exportData);
+				const stringifiedExportData = stringify(exportData);
+
+				if (this.#config.compressSave) {
+					return compress(stringifiedExportData, SAVE_COMPRESSION_FORMAT);
+				}
+
+				return stringifiedExportData;
 			},
 		);
 	}
 
-	/** Can be used when directly loading a save from an exported save on disk  */
+	/** Can be used when directly loading a save from an exported save on disk
+	 *
+	 * @throws if the save was made on a later version than the engine or if a save migration throws
+	 */
 	async loadFromExport(data: string): Promise<void> {
 		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
 			"load",
 			async () => {
+				const jsonString = await decompressJsonStringIfCompressed(data);
+
 				const {
 					achievements,
-					saveData: { intialState, snapshots, storyIndex },
+					saveData,
 					settings,
-				}: SugarBoxExportData<
-					TVariables,
-					TSettingsData,
-					TAchievementData
-				> = parse(data);
+				}: SugarBoxExportData<TVariables, TSettingsData, TAchievementData> =
+					parse(jsonString);
 
 				// Replace the current state
-				this.#initialState = intialState;
-				this.#stateSnapshots = snapshots;
-				this.#index = storyIndex;
+				this.loadSaveFromData(saveData);
+
 				this.#achievements = achievements;
 				this.#settings = settings;
 			},
@@ -1003,6 +1197,17 @@ class SugarboxEngine<
 		return state;
 	}
 
+	/** **WARNING:** This will **replace** the intialState and **empty** all the snapshots. */
+	#rewriteState(
+		stateToReplaceTheCurrentOne: StateWithMetadata<TVariables>,
+	): void {
+		this.#initialState = stateToReplaceTheCurrentOne;
+
+		this.#stateSnapshots = this.#stateSnapshots.map((_) => ({}));
+
+		this.#stateCache?.clear();
+	}
+
 	#createCustomEvent<
 		TEventType extends keyof SugarBoxEvents<
 			TPassageType,
@@ -1153,36 +1358,15 @@ class SugarboxEngine<
 	get #currentStatePrng(): PRNG {
 		return this.#getPrngFromSeed(this.#varsWithMetadata.__seed);
 	}
+}
 
-	/** For testing purposes.
-	 *
-	 * It's only populated in development mode.
-	 */
-	get __testAPI(): {
-		mergeSnapshots: (lowerIndex: number, upperIndex: number) => void;
-		getSnapshotAtIndex: (index: number) => SnapshotWithMetadata<TVariables>;
-		getStateAtIndex: (
-			index?: number,
-		) => Readonly<StateWithMetadata<TVariables>>;
-		addNewSnapshot: () => SnapshotWithMetadata<TVariables>;
-		setIndex: (val: number) => void;
-		snapshots: Array<SnapshotWithMetadata<TVariables>>;
-		initialState: Readonly<StateWithMetadata<TVariables>>;
-	} | null {
-		if (process.env.NODE_ENV !== "production") {
-			return {
-				mergeSnapshots: this.#mergeSnapshots.bind(this),
-				getSnapshotAtIndex: this.#getSnapshotAtIndex.bind(this),
-				getStateAtIndex: this.#getStateAtIndex.bind(this),
-				addNewSnapshot: this.#addNewSnapshot.bind(this),
-				setIndex: this.#setIndex.bind(this),
-				snapshots: this.#stateSnapshots,
-				initialState: this.#initialState,
-			};
-		}
-
-		return null;
-	}
+async function decompressJsonStringIfCompressed(
+	possiblyCompressedString: string,
+): Promise<string> {
+	return isStringJsonObjectOrCompressedString(possiblyCompressedString) ===
+		"json"
+		? possiblyCompressedString
+		: decompress(possiblyCompressedString, SAVE_COMPRESSION_FORMAT);
 }
 
 export { SugarboxEngine };
