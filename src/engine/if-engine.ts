@@ -21,10 +21,8 @@ import type {
 	SugarBoxSettingsKey,
 } from "../types/if-engine";
 import type { SugarBoxCompatibleClassConstructor } from "../types/userland-classes";
-import type { ReadonlyDeep } from "../types/utility-types";
 import { clone } from "../utils/clone";
 import { isStringJsonObjectOrCompressedString } from "../utils/compression";
-import { makeImmutable } from "../utils/mutability";
 import {
 	deserialize as parse,
 	registerClass,
@@ -75,7 +73,7 @@ type Config<TState extends Record<string, unknown>> = Partial<
 
 /** Events fired from a `SugarBoxEngine` instance */
 type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
-	":passageChange": ReadonlyDeep<{
+	":passageChange": Readonly<{
 		/** The previous passage before the transition */
 		oldPassage: TPassageData | null;
 
@@ -83,7 +81,7 @@ type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 		newPassage: TPassageData | null;
 	}>;
 
-	":stateChange": ReadonlyDeep<{
+	":stateChange": Readonly<{
 		/** The previous snapshot of only variables (to be changed) before the change */
 		oldState: TPartialSnapshot;
 
@@ -101,12 +99,12 @@ type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 
 	":loadEnd": { type: "success" } | { type: "error"; error: Error };
 
-	":migrationStart": ReadonlyDeep<{
+	":migrationStart": Readonly<{
 		fromVersion: SugarBoxSemanticVersionString;
 		toVersion: SugarBoxSemanticVersionString;
 	}>;
 
-	":migrationEnd": ReadonlyDeep<
+	":migrationEnd": Readonly<
 		| {
 				type: "success";
 				fromVersion: SugarBoxSemanticVersionString;
@@ -409,8 +407,8 @@ class SugarboxEngine<
 		}
 
 		self.#emitCustomEvent(":stateChange", {
-			newState: makeImmutable(newState),
-			oldState: makeImmutable(newState),
+			newState,
+			oldState,
 		});
 
 		// Clear the cache entry for this since it has been changed
@@ -1050,13 +1048,13 @@ class SugarboxEngine<
 
 		// Emit the events for passage and state changes
 		this.#emitCustomEvent(":passageChange", {
-			newPassage: makeImmutable(this.passage),
-			oldPassage: makeImmutable(oldPassage),
+			newPassage: this.passage,
+			oldPassage,
 		});
 
 		this.#emitCustomEvent(":stateChange", {
-			newState: makeImmutable(this.#getSnapshotAtIndex(this.#index)),
-			oldState: makeImmutable(oldSnapshot),
+			newState: this.#getSnapshotAtIndex(this.#index),
+			oldState: oldSnapshot,
 		});
 	}
 

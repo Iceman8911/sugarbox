@@ -8,7 +8,6 @@ import type {
 	SugarBoxCompatibleClassConstructorCheck,
 	SugarBoxCompatibleClassInstance,
 } from "./types/userland-classes";
-import type { ReadonlyDeep, WritableDeep } from "./types/utility-types";
 
 export {
 	SugarboxEngine,
@@ -18,6 +17,4 @@ export {
 	type SugarBoxAnyKey,
 	type SugarBoxPersistenceAdapter,
 	type SugarBoxCacheAdapter,
-	type ReadonlyDeep,
-	type WritableDeep,
 };
