@@ -192,7 +192,7 @@ All custom classes that are stored in the story's state must conform to the type
 Example:
 ```typescript
 class Player {
-  // ... implement __clone, __toJSON, static __fromJSON, static __classId ...
+  // ... implement __toJSON, static __fromJSON, static __classId ...
 }
 engine.registerClasses(Player);
 ```

@@ -9,7 +9,7 @@ import type {
 } from "../types/serializer";
 import type { SugarBoxCompatibleClassConstructor } from "../types/userland-classes";
 
-type ClassConstructor = SugarBoxCompatibleClassConstructor<unknown, unknown>;
+type ClassConstructor = SugarBoxCompatibleClassConstructor<unknown>;
 
 // Custom serializer that uses JSON with custom class support
 const classRegistry = new Map<string, ClassConstructor>();

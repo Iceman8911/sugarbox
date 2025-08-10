@@ -267,7 +267,7 @@ class SugarboxEngine<
 		otherPassages: SugarBoxPassage<TPassageType>[];
 
 		/** So you don't have to manually register classes for proper serialization / deserialization */
-		classes?: SugarBoxCompatibleClassConstructor<unknown, unknown>[];
+		classes?: SugarBoxCompatibleClassConstructor<unknown>[];
 
 		/** Achievements that should persist across saves */
 		achievements?: TAchievementData;
@@ -619,7 +619,7 @@ class SugarboxEngine<
 
 	/** Any custom classes stored in the story's state must be registered with this */
 	registerClasses(
-		...customClasses: SugarBoxCompatibleClassConstructor<unknown, unknown>[]
+		...customClasses: SugarBoxCompatibleClassConstructor<unknown>[]
 	): void {
 		customClasses.forEach((customClass) => {
 			registerClass(customClass);

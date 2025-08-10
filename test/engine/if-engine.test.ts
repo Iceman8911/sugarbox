@@ -18,9 +18,7 @@ const SAMPLE_PASSAGES = [
 ] as const;
 
 async function initEngine() {
-	class Player
-		implements SugarBoxCompatibleClassInstance<Player, SerializedPlayer>
-	{
+	class Player implements SugarBoxCompatibleClassInstance<SerializedPlayer> {
 		name = "Dave";
 		age = 21;
 		class = "Paladin";
@@ -36,14 +34,6 @@ async function initEngine() {
 			return this.inventory.items[0];
 		}
 
-		__clone() {
-			const clone = new Player();
-
-			Object.assign(clone, this);
-
-			return clone;
-		}
-
 		__toJSON() {
 			return { ...this };
 		}
@@ -52,7 +42,7 @@ async function initEngine() {
 
 		static __fromJSON(
 			serializedData: SerializedPlayer,
-		): SugarBoxCompatibleClassInstance<Player, SerializedPlayer> {
+		): SugarBoxCompatibleClassInstance<SerializedPlayer> {
 			const player = new Player();
 
 			Object.assign(player, serializedData);
@@ -795,11 +785,6 @@ describe("Custom Classes", () => {
 			name = "unregistered";
 			iExist() {
 				return true;
-			}
-			__clone() {
-				const c = new Unregistered();
-				c.name = this.name;
-				return c;
 			}
 			__toJSON() {
 				return { name: this.name, __class_id: "Unregistered" };
