@@ -69,7 +69,8 @@ type SnapshotWithMetadata<TVariables extends Record<string, unknown>> = Partial<
 >;
 
 type Config<TState extends Record<string, unknown>> = Partial<
-	SugarBoxConfig<StateWithMetadata<TState>>
+	// Didn't use the metadata type since this will be exposed to the consumer
+	SugarBoxConfig<TState>
 >;
 
 /** Events fired from a `SugarBoxEngine` instance */
