@@ -90,7 +90,7 @@ type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 		newState: TPartialSnapshot;
 	}>;
 
-	":init": null;
+	// ":init": null;
 
 	":saveStart": null;
 

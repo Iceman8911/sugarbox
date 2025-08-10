@@ -455,12 +455,13 @@ The available events are:
 * `:saveEnd`: Fired after a save operation completes. The `detail` contains a discriminated union denoting whether the operation was successful or not. If not successful, an error is also returned.
 * `:loadStart`: Fired just before a load operation begins. The `detail` is null.
 * `:loadEnd`: Fired after a load operation completes. The `detail` contains a discriminated union denoting whether the operation was successful or not. If not successful, an error is also returned
+* `:migrationStart`: Fired just before a save migration operation begins. The `detail` contains the current save version that is to be migrated.
+* `:migrationEnd`: Fired after a save migration operation completes. The `detail` contains a discriminated union denoting whether the operation was successful or not, as well as the intial and final save versions. If not successful, an error is also returned.
 
 ## Events
 
 Sugarbox emits several custom events you can listen to with `on()`:
 
-- `:init` — Fired when the engine is initialized.
 - `:passageChange` — Fired when the passage changes.
 - `:stateChange` — Fired when the state changes.
 - `:saveStart` / `:saveEnd` — Fired before/after a save.
@@ -675,9 +676,9 @@ Sugarbox is written in TypeScript and provides full type definitions for all pub
 The library exports several useful types for TypeScript users:
 
 ```typescript
-import { 
-  SugarboxEngine, 
-  type SugarBoxConfig 
+import {
+  SugarboxEngine,
+  type SugarBoxConfig
 } from "sugarbox";
 
 // Main configuration type
@@ -706,18 +707,18 @@ engine.setVars((state) => {
 For custom classes, implement the required interfaces:
 
 ```typescript
-import type { 
+import type {
   SugarBoxCompatibleClassInstance,
-  SugarBoxCompatibleClassConstructor 
+  SugarBoxCompatibleClassConstructor
 } from "sugarbox";
 
 class Player implements SugarBoxCompatibleClassInstance<PlayerData> {
   static __classId = "Player";
-  
+
   __toJSON(): PlayerData {
     return { name: this.name, level: this.level };
   }
-  
+
   static __fromJSON(data: PlayerData): Player {
     const player = new Player();
     Object.assign(player, data);
