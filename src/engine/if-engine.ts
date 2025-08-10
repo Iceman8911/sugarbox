@@ -99,6 +99,25 @@ type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 	":loadStart": null;
 
 	":loadEnd": { type: "success" } | { type: "error"; error: Error };
+
+	":migrationStart": ReadonlyDeep<{
+		fromVersion: SugarBoxSemanticVersionString;
+		toVersion: SugarBoxSemanticVersionString;
+	}>;
+
+	":migrationEnd": ReadonlyDeep<
+		| {
+				type: "success";
+				fromVersion: SugarBoxSemanticVersionString;
+				toVersion: SugarBoxSemanticVersionString;
+		  }
+		| {
+				type: "error";
+				fromVersion: SugarBoxSemanticVersionString;
+				toVersion: SugarBoxSemanticVersionString;
+				error: Error;
+		  }
+	>;
 };
 
 type SugarBoxSaveMigration<
@@ -782,7 +801,6 @@ class SugarboxEngine<
 						const migratorData = this.#saveMigrationMap.get(
 							saveToMigrateVersionString(),
 						);
-
 						if (!migratorData) {
 							throw new Error(
 								`No migrator function found for save version ${saveToMigrateVersionString()}. Required to migrate to engine version ${engineVersion}.`,
@@ -791,11 +809,31 @@ class SugarboxEngine<
 
 						const { migrater, to } = migratorData;
 
-						const currentStateToMigrate =
-							migratedState ?? this.#varsWithMetadata;
+						this.#emitCustomEvent(":migrationStart", {
+							fromVersion: saveToMigrateVersionString(),
+							toVersion: to,
+						});
 
-						// This may throw
-						migratedState = migrater(currentStateToMigrate);
+						try {
+							const currentStateToMigrate =
+								migratedState ?? this.#varsWithMetadata;
+							migratedState = migrater(currentStateToMigrate);
+
+							this.#emitCustomEvent(":migrationEnd", {
+								type: "success",
+								fromVersion: saveToMigrateVersionString(),
+								toVersion: to,
+							});
+						} catch (error) {
+							this.#emitCustomEvent(":migrationEnd", {
+								type: "error",
+								fromVersion: saveToMigrateVersionString(),
+								toVersion: to,
+								error:
+									error instanceof Error ? error : new Error(String(error)),
+							});
+							throw error;
+						}
 
 						saveToMigrateVersion = SugarBoxSemanticVersion.__fromJSON(to);
 					}

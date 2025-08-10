@@ -565,6 +565,84 @@ describe("Advanced Saving and Loading", () => {
 		expect(engine3.vars.prop4).toBe("newProp");
 	});
 
+	test("should emit migration events during save migration", async () => {
+		const persistence = createPersistenceAdapter();
+
+		type V010 = { foo: string };
+		type V020 = { foo: string; bar: number };
+		type V030 = { foo: string; bar: number; baz: boolean };
+
+		const saveV010 = {
+			intialState: { foo: "hello" },
+			lastPassageId: "start",
+			savedOn: new Date(),
+			saveVersion: "0.1.0",
+			snapshots: [{ foo: "pain" }],
+			storyIndex: 0,
+		};
+
+		const migrations = [
+			{
+				from: "0.1.0",
+				data: {
+					to: "0.2.0",
+					migrater: (old: V010): V020 => ({ ...old, bar: 42 }),
+				},
+			} as const,
+			{
+				from: "0.2.0",
+				data: {
+					to: "0.3.0",
+					migrater: (old: V020): V030 => ({ ...old, baz: true }),
+				},
+			} as const,
+		];
+
+		const engine = await SugarboxEngine.init({
+			name: "migration-events-test",
+			variables: { foo: "init", bar: 0, baz: false },
+			startPassage: { name: "start", passage: "Start" },
+			migrations,
+			config: { saveVersion: "0.3.0", persistence },
+			otherPassages: [],
+			achievements: {},
+		});
+
+		const migrationEvents: unknown[] = [];
+
+		engine.on(":migrationStart", (e) => {
+			migrationEvents.push({ type: "start", ...e.detail });
+		});
+
+		engine.on(":migrationEnd", (e) => migrationEvents.push(e.detail));
+
+		//@ts-expect-error save will be migrated
+		engine.loadSaveFromData(saveV010);
+
+		expect(migrationEvents).toEqual([
+			{
+				type: "start",
+				fromVersion: "0.1.0",
+				toVersion: "0.2.0",
+			},
+			{
+				type: "success",
+				fromVersion: "0.1.0",
+				toVersion: "0.2.0",
+			},
+			{
+				type: "start",
+				fromVersion: "0.2.0",
+				toVersion: "0.3.0",
+			},
+			{
+				type: "success",
+				fromVersion: "0.2.0",
+				toVersion: "0.3.0",
+			},
+		]);
+	});
+
 	test("liberal save compatibility mode should allow loading older minor versions without migration", async () => {
 		const persistence = createPersistenceAdapter();
 
