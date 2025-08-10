@@ -69,7 +69,7 @@ type SugarBoxSaveData<
 	// playtimeInSeconds: number;
 
 	/** The version of the story associated with this save */
-	saveVersion: SugarBoxSemanticVersion;
+	saveVersion: SugarBoxSemanticVersionString;
 }>;
 
 /** Export data structure used for saving the state of the engine to disk.

@@ -699,7 +699,7 @@ class SugarboxEngine<
 					intialState: this.#initialState,
 					lastPassageId: this.passageId,
 					savedOn: new Date(),
-					saveVersion: SugarBoxSemanticVersion.__fromJSON(saveVersion),
+					saveVersion: saveVersion,
 					snapshots: this.#stateSnapshots,
 					storyIndex: this.#index,
 				};
@@ -764,7 +764,7 @@ class SugarboxEngine<
 		const { saveCompatibilityMode, saveVersion: engineVersion } = this.#config;
 
 		const saveCompatibility = isSaveCompatibleWithEngine(
-			saveVersion,
+			SugarBoxSemanticVersion.__fromJSON(saveVersion),
 			SugarBoxSemanticVersion.__fromJSON(engineVersion),
 			saveCompatibilityMode,
 		);
@@ -790,27 +790,22 @@ class SugarboxEngine<
 				this.#index = storyIndex;
 
 				try {
-					let saveToMigrateVersion = saveVersion;
-
-					const saveToMigrateVersionString = () =>
-						saveToMigrateVersion.toString();
-
 					let migratedState: StateWithMetadata<TVariables> | null = null;
 
-					while (saveToMigrateVersionString() !== engineVersion.toString()) {
-						const migratorData = this.#saveMigrationMap.get(
-							saveToMigrateVersionString(),
-						);
+					let currentSaveVersion = saveVersion;
+
+					while (currentSaveVersion !== engineVersion) {
+						const migratorData = this.#saveMigrationMap.get(currentSaveVersion);
 						if (!migratorData) {
 							throw new Error(
-								`No migrator function found for save version ${saveToMigrateVersionString()}. Required to migrate to engine version ${engineVersion}.`,
+								`No migrator function found for save version ${currentSaveVersion}. Required to migrate to engine version ${engineVersion}.`,
 							);
 						}
 
 						const { migrater, to } = migratorData;
 
 						this.#emitCustomEvent(":migrationStart", {
-							fromVersion: saveToMigrateVersionString(),
+							fromVersion: currentSaveVersion,
 							toVersion: to,
 						});
 
@@ -821,13 +816,13 @@ class SugarboxEngine<
 
 							this.#emitCustomEvent(":migrationEnd", {
 								type: "success",
-								fromVersion: saveToMigrateVersionString(),
+								fromVersion: currentSaveVersion,
 								toVersion: to,
 							});
 						} catch (error) {
 							this.#emitCustomEvent(":migrationEnd", {
 								type: "error",
-								fromVersion: saveToMigrateVersionString(),
+								fromVersion: currentSaveVersion,
 								toVersion: to,
 								error:
 									error instanceof Error ? error : new Error(String(error)),
@@ -835,7 +830,7 @@ class SugarboxEngine<
 							throw error;
 						}
 
-						saveToMigrateVersion = SugarBoxSemanticVersion.__fromJSON(to);
+						currentSaveVersion = to;
 					}
 
 					// Save migration completed successfully so rewrite the state with it
@@ -846,7 +841,7 @@ class SugarboxEngine<
 					}
 
 					throw new Error(
-						`Save with version ${saveToMigrateVersion} returned null during migration`,
+						`Save with version ${currentSaveVersion} returned null during migration`,
 					);
 				} catch (e) {
 					// Reset any changes since the migration failed
@@ -925,9 +920,8 @@ class SugarboxEngine<
 					saveData: {
 						intialState: this.#initialState,
 						lastPassageId: this.passageId,
-						saveVersion: SugarBoxSemanticVersion.__fromJSON(
-							this.#config.saveVersion,
-						),
+						saveVersion: this.#config.saveVersion,
+
 						savedOn: new Date(),
 						snapshots: this.#stateSnapshots,
 						storyIndex: this.#index,
