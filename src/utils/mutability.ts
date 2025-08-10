@@ -1,4 +1,4 @@
-import type { ReadonlyDeep, WritableDeep } from "type-fest";
+import type { ReadonlyDeep, WritableDeep } from "../types/utility-types";
 
 const makeMutable = <TData>(data: TData): WritableDeep<TData> => {
 	return data as WritableDeep<TData>;

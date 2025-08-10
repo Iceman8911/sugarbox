@@ -7,7 +7,6 @@
 
 import { PRNG } from "@iceman8911/tiny-prng";
 import { compress, decompress } from "@zalari/string-compression-utils";
-import type { ReadonlyDeep } from "type-fest";
 import type { SugarBoxCacheAdapter } from "../types/adapters";
 import type {
 	SugarBoxAchievementsKey,
@@ -22,6 +21,7 @@ import type {
 	SugarBoxSettingsKey,
 } from "../types/if-engine";
 import type { SugarBoxCompatibleClassConstructor } from "../types/userland-classes";
+import type { ReadonlyDeep } from "../types/utility-types";
 import { clone } from "../utils/clone";
 import { isStringJsonObjectOrCompressedString } from "../utils/compression";
 import { makeImmutable } from "../utils/mutability";
