@@ -31,7 +31,6 @@ import { isStringJsonObjectOrCompressedString } from "../utils/compression";
 import { makeImmutable } from "../utils/mutability";
 import {
 	isSaveCompatibleWithEngine,
-	SugarBoxSemanticVersion,
 	type SugarBoxSemanticVersionString,
 } from "../utils/version";
 
@@ -243,9 +242,6 @@ class SugarboxEngine<
 		if (cache) {
 			this.#stateCache = cache;
 		}
-
-		// Register the Semantic Version class so it can be used in the state
-		this.registerClasses(SugarBoxSemanticVersion);
 	}
 
 	/** Use this to initialize the engine */
@@ -764,8 +760,8 @@ class SugarboxEngine<
 		const { saveCompatibilityMode, saveVersion: engineVersion } = this.#config;
 
 		const saveCompatibility = isSaveCompatibleWithEngine(
-			SugarBoxSemanticVersion.__fromJSON(saveVersion),
-			SugarBoxSemanticVersion.__fromJSON(engineVersion),
+			saveVersion,
+			engineVersion,
 			saveCompatibilityMode,
 		);
 

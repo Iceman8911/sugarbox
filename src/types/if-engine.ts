@@ -1,7 +1,4 @@
-import type {
-	SugarBoxSemanticVersion,
-	SugarBoxSemanticVersionString,
-} from "../utils/version";
+import type { SugarBoxSemanticVersionString } from "../utils/version";
 import type {
 	SugarBoxCacheAdapter,
 	SugarBoxPersistenceAdapter,
