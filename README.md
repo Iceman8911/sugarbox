@@ -189,6 +189,33 @@ Navigating to a new passage (which moves the index forward) whilist backwards in
 
 All custom classes that are stored in the story's state must conform to the type interfaces; `SugarBoxCompatibleClassInstance` and `SugarBoxCompatibleClassConstructor`, and also have the class constructor itself registered in the engine via `registerClasses(Class1, Class2, ..., ClassN)`. This is so that they can be cloned and serialized.
 
+### Supported Data Types for Serialization
+
+The engine's serialization system supports the following data types in your story variables:
+
+**✅ Fully Supported:**
+- Primitives: `number`, `string`, `boolean`, `null`, `undefined`
+- `Array`
+- Plain `Object`
+- Custom classes (with `__toJSON`/`__fromJSON` methods)
+- `Date` objects
+- `Set` objects
+- `Map` objects
+- `RegExp` objects
+- `BigInt`
+
+**❌ Not Supported:**
+- `Symbol`
+- `Function`
+- `WeakMap` / `WeakSet`
+- `TypedArray` (`Int8Array`, `Uint8Array`, etc.)
+- `ArrayBuffer` / `SharedArrayBuffer`
+- `Error` objects
+- `URL` objects
+- Circular references
+
+If you need to store unsupported types, consider converting them to supported formats (e.g., functions to strings, or Error objects to plain objects with error details).
+
 Example:
 ```typescript
 class Player {
