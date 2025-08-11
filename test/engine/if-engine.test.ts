@@ -425,6 +425,190 @@ describe("Advanced Saving and Loading", () => {
 		expect(didThrow).toBeTrue();
 	});
 
+	test("deleteSaveSlot should delete a specific save slot", async () => {
+		// Set up some test data
+		engine.setVars((s) => {
+			s.player.level = 10;
+		});
+
+		// Save to slot 1
+		await engine.saveToSaveSlot(1);
+
+		// Set different data
+		engine.setVars((s) => {
+			s.player.level = 20;
+		});
+
+		// Save to slot 2
+		await engine.saveToSaveSlot(2);
+
+		// Verify both saves exist
+		const savesBeforeDelete: Record<string, unknown>[] = [];
+		for await (const save of engine.getSaves()) {
+			if (save.type === "normal") {
+				savesBeforeDelete.push(save);
+			}
+		}
+		expect(savesBeforeDelete.length).toBe(2);
+
+		// Delete slot 1
+		await engine.deleteSaveSlot(1);
+
+		// Verify only slot 2 remains
+		const savesAfterDelete: Record<string, unknown>[] = [];
+		for await (const save of engine.getSaves()) {
+			if (save.type === "normal") {
+				savesAfterDelete.push(save);
+			}
+		}
+		expect(savesAfterDelete.length).toBe(1);
+		expect(savesAfterDelete[0].slot).toBe(2);
+	});
+
+	test("deleteSaveSlot should delete autosave when no slot provided", async () => {
+		// Set up test data
+		engine.setVars((s) => {
+			s.player.level = 15;
+		});
+
+		// Create an autosave
+		await engine.saveToSaveSlot();
+
+		// Verify autosave exists
+		let autosaveExists = false;
+		for await (const save of engine.getSaves()) {
+			if (save.type === "autosave") {
+				autosaveExists = true;
+				break;
+			}
+		}
+		expect(autosaveExists).toBe(true);
+
+		// Delete autosave
+		await engine.deleteSaveSlot();
+
+		// Verify autosave no longer exists
+		autosaveExists = false;
+		for await (const save of engine.getSaves()) {
+			if (save.type === "autosave") {
+				autosaveExists = true;
+				break;
+			}
+		}
+		expect(autosaveExists).toBe(false);
+	});
+
+	test("deleteSaveSlot should throw for invalid save slots", async () => {
+		// Try to delete an invalid save slot (out of range) - should throw
+		let didThrow = false;
+		try {
+			await engine.deleteSaveSlot(999);
+		} catch {
+			didThrow = true;
+		}
+		expect(didThrow).toBe(true);
+	});
+
+	test("deleteSaveSlot should handle non-existent but valid save slots gracefully", async () => {
+		// Try to delete a valid but non-existent save slot - should not throw
+		expect(engine.deleteSaveSlot(5)).resolves.toBeUndefined();
+	});
+
+	test("deleteAllSaveSlots should delete all save slots", async () => {
+		// Create multiple saves
+		engine.setVars((s) => {
+			s.player.level = 5;
+		});
+		await engine.saveToSaveSlot(1);
+
+		engine.setVars((s) => {
+			s.player.level = 10;
+		});
+		await engine.saveToSaveSlot(2);
+
+		engine.setVars((s) => {
+			s.player.level = 15;
+		});
+		await engine.saveToSaveSlot(3);
+
+		// Create an autosave
+		engine.setVars((s) => {
+			s.player.level = 20;
+		});
+		await engine.saveToSaveSlot();
+
+		// Verify all saves exist
+		const savesBeforeDelete: Record<string, unknown>[] = [];
+		for await (const save of engine.getSaves()) {
+			savesBeforeDelete.push(save);
+		}
+		expect(savesBeforeDelete.length).toBe(4); // 3 normal saves + 1 autosave
+
+		// Delete all saves
+		await engine.deleteAllSaveSlots();
+
+		// Verify no saves remain
+		const savesAfterDelete: Record<string, unknown>[] = [];
+		for await (const save of engine.getSaves()) {
+			savesAfterDelete.push(save);
+		}
+		expect(savesAfterDelete.length).toBe(0);
+	});
+
+	test("deleteAllSaveSlots should handle empty save list gracefully", async () => {
+		// Ensure no saves exist
+		const saves: Record<string, unknown>[] = [];
+		for await (const save of engine.getSaves()) {
+			saves.push(save);
+		}
+		expect(saves.length).toBe(0);
+
+		// Delete all saves (should not throw)
+		expect(engine.deleteAllSaveSlots()).resolves.toBeDefined();
+	});
+
+	test("deleteSaveSlot should throw when persistence is not available", async () => {
+		// Create an engine without persistence
+		const engineWithoutPersistence = await SugarboxEngine.init({
+			name: "Test",
+			startPassage: { name: "Start", passage: "This is the start passage" },
+			config: {},
+			otherPassages: [],
+			variables: {},
+			achievements: {} as Record<string, unknown>,
+		});
+
+		let didThrow = false;
+		try {
+			await engineWithoutPersistence.deleteSaveSlot(1);
+		} catch {
+			didThrow = true;
+		}
+
+		expect(didThrow).toBe(true);
+	});
+
+	test("deleteAllSaveSlots should throw when persistence is not available", async () => {
+		// Create an engine without persistence
+		const engineWithoutPersistence = await SugarboxEngine.init({
+			name: "Test",
+			startPassage: { name: "Start", passage: "This is the start passage" },
+			config: {},
+			otherPassages: [],
+			variables: {},
+			achievements: {} as Record<string, unknown>,
+		});
+
+		let didThrow = false;
+		try {
+			await engineWithoutPersistence.deleteAllSaveSlots();
+		} catch {
+			didThrow = true;
+		}
+
+		expect(didThrow).toBe(true);
+	});
+
 	test("save migration(s) should work", async () => {
 		const persistence = createPersistenceAdapter();
 

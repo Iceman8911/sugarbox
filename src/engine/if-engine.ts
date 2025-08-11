@@ -714,6 +714,36 @@ class SugarboxEngine<
 		);
 	}
 
+	/** Deletes any save data associated with the provided save slot.
+	 *
+	 * @param saveSlot if not provided, defaults to the autosave slot
+	 *
+	 * @throws if the save slot is invalid or if the persistence adapter is not available
+	 */
+	async deleteSaveSlot(saveSlot?: number): Promise<unknown> {
+		const { persistence } = this.#config;
+
+		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
+
+		const saveSlotKey = this.#getSaveKeyFromSaveSlotNumber(saveSlot);
+
+		return persistence.delete(saveSlotKey);
+	}
+
+	async deleteAllSaveSlots(): Promise<unknown> {
+		const deletePromises: Array<Promise<unknown>> = [];
+
+		for await (const save of this.getSaves()) {
+			if (save.type === "autosave") {
+				deletePromises.push(this.deleteSaveSlot());
+			} else {
+				deletePromises.push(this.deleteSaveSlot(save.slot));
+			}
+		}
+
+		return Promise.allSettled(deletePromises);
+	}
+
 	/** Loads the save data from the provided save data object.
 	 *
 	 * This is used to load saves from the `getSaves()` method.
