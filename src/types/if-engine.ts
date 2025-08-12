@@ -170,13 +170,10 @@ type SugarBoxConfig<
 	regenSeed: "passage" | "eachCall" | false;
 
 	/** Optional cache adapter to use to speed up state fetching */
-	cache?: SugarBoxCacheAdapter<
-		number,
-		SugarBoxVariables<TStructure> & SugarBoxMetadata
-	>;
+	cache?: SugarBoxCacheAdapter<SugarBoxVariables<TStructure>>;
 
 	/** Optional persistence adapter for saving support */
-	persistence?: SugarBoxPersistenceAdapter<SugarBoxAnyKey, string>;
+	persistence?: SugarBoxPersistenceAdapter;
 };
 
 type SugarBoxPassage<TPassageType> = {

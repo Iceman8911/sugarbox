@@ -7,7 +7,6 @@
 
 import { PRNG } from "@iceman8911/tiny-prng";
 import { compress, decompress } from "@zalari/string-compression-utils";
-import type { ReadonlyDeep } from "type-fest";
 import type { SugarBoxCacheAdapter } from "../types/adapters";
 import type {
 	SugarBoxAchievementsKey,
@@ -24,7 +23,6 @@ import type {
 import type { SugarBoxCompatibleClassConstructor } from "../types/userland-classes";
 import { clone } from "../utils/clone";
 import { isStringJsonObjectOrCompressedString } from "../utils/compression";
-import { makeImmutable } from "../utils/mutability";
 import {
 	deserialize as parse,
 	registerClass,
@@ -75,7 +73,7 @@ type Config<TState extends Record<string, unknown>> = Partial<
 
 /** Events fired from a `SugarBoxEngine` instance */
 type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
-	":passageChange": ReadonlyDeep<{
+	":passageChange": Readonly<{
 		/** The previous passage before the transition */
 		oldPassage: TPassageData | null;
 
@@ -83,7 +81,7 @@ type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 		newPassage: TPassageData | null;
 	}>;
 
-	":stateChange": ReadonlyDeep<{
+	":stateChange": Readonly<{
 		/** The previous snapshot of only variables (to be changed) before the change */
 		oldState: TPartialSnapshot;
 
@@ -101,12 +99,12 @@ type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 
 	":loadEnd": { type: "success" } | { type: "error"; error: Error };
 
-	":migrationStart": ReadonlyDeep<{
+	":migrationStart": Readonly<{
 		fromVersion: SugarBoxSemanticVersionString;
 		toVersion: SugarBoxSemanticVersionString;
 	}>;
 
-	":migrationEnd": ReadonlyDeep<
+	":migrationEnd": Readonly<
 		| {
 				type: "success";
 				fromVersion: SugarBoxSemanticVersionString;
@@ -183,7 +181,7 @@ class SugarboxEngine<
 	#passages = new Map<string, TPassageType>();
 
 	/** Since recalculating the current state can be expensive */
-	#stateCache?: SugarBoxCacheAdapter<number, StateWithMetadata<TVariables>>;
+	#stateCache?: SugarBoxCacheAdapter<TVariables>;
 
 	#eventTarget = new EventTarget();
 
@@ -409,8 +407,8 @@ class SugarboxEngine<
 		}
 
 		self.#emitCustomEvent(":stateChange", {
-			newState: makeImmutable(newState),
-			oldState: makeImmutable(newState),
+			newState,
+			oldState,
 		});
 
 		// Clear the cache entry for this since it has been changed
@@ -714,6 +712,36 @@ class SugarboxEngine<
 				this.loadSaveFromData(parse(jsonString));
 			},
 		);
+	}
+
+	/** Deletes any save data associated with the provided save slot.
+	 *
+	 * @param saveSlot if not provided, defaults to the autosave slot
+	 *
+	 * @throws if the save slot is invalid or if the persistence adapter is not available
+	 */
+	async deleteSaveSlot(saveSlot?: number): Promise<unknown> {
+		const { persistence } = this.#config;
+
+		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
+
+		const saveSlotKey = this.#getSaveKeyFromSaveSlotNumber(saveSlot);
+
+		return persistence.delete(saveSlotKey);
+	}
+
+	async deleteAllSaveSlots(): Promise<unknown> {
+		const deletePromises: Array<Promise<unknown>> = [];
+
+		for await (const save of this.getSaves()) {
+			if (save.type === "autosave") {
+				deletePromises.push(this.deleteSaveSlot());
+			} else {
+				deletePromises.push(this.deleteSaveSlot(save.slot));
+			}
+		}
+
+		return Promise.allSettled(deletePromises);
 	}
 
 	/** Loads the save data from the provided save data object.
@@ -1050,13 +1078,13 @@ class SugarboxEngine<
 
 		// Emit the events for passage and state changes
 		this.#emitCustomEvent(":passageChange", {
-			newPassage: makeImmutable(this.passage),
-			oldPassage: makeImmutable(oldPassage),
+			newPassage: this.passage,
+			oldPassage,
 		});
 
 		this.#emitCustomEvent(":stateChange", {
-			newState: makeImmutable(this.#getSnapshotAtIndex(this.#index)),
-			oldState: makeImmutable(oldSnapshot),
+			newState: this.#getSnapshotAtIndex(this.#index),
+			oldState: oldSnapshot,
 		});
 	}
 

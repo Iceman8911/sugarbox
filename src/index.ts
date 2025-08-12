@@ -14,7 +14,7 @@ export {
 	type SugarBoxConfig,
 	type SugarBoxCompatibleClassConstructorCheck,
 	type SugarBoxCompatibleClassInstance,
-	type SugarBoxCacheAdapter,
-	type SugarBoxPersistenceAdapter,
 	type SugarBoxAnyKey,
+	type SugarBoxPersistenceAdapter,
+	type SugarBoxCacheAdapter,
 };

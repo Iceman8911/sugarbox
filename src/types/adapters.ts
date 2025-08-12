@@ -1,3 +1,5 @@
+import type { SugarBoxAnyKey, SugarBoxMetadata } from "./if-engine";
+
 /** Interface that any cache infrastructure must abide to */
 type CacheAdapter<TKey, TData> = {
 	set(key: TKey, data: TData): unknown;
@@ -8,6 +10,10 @@ type CacheAdapter<TKey, TData> = {
 
 	clear(): unknown;
 };
+
+/** Cache Adapter specifically for caching the state of variables */
+type SugarBoxCacheAdapter<TStateVariables extends Record<string, unknown>> =
+	CacheAdapter<number, TStateVariables & SugarBoxMetadata>;
 
 /** Interface that any persistence infrastructure must abide to */
 type PersistenceAdapter<TKey, TData> = {
@@ -21,7 +27,12 @@ type PersistenceAdapter<TKey, TData> = {
 	keys?(): Promise<Iterable<TKey>>;
 };
 
+/** Persistence Adapter specifically for saving the state of variables */
+type SugarBoxPersistenceAdapter = PersistenceAdapter<SugarBoxAnyKey, string>;
+
 export type {
-	CacheAdapter as SugarBoxCacheAdapter,
-	PersistenceAdapter as SugarBoxPersistenceAdapter,
+	CacheAdapter as GenericCacheAdapter,
+	PersistenceAdapter as GenericPersistenceAdapter,
+	SugarBoxPersistenceAdapter,
+	SugarBoxCacheAdapter,
 };

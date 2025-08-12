@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { clone } from "../../src/utils/clone";
-import { makeImmutable, makeMutable } from "../../src/utils/mutability";
 import { registerClass } from "../../src/utils/serializer";
 
 // Define a simple custom class for testing devalue compatibility
@@ -11,16 +10,16 @@ class TestCustomClass {
 		this.value = value;
 	}
 
-	// Required for devalue serializer
-	__toJSON() {
+	// Required for the serializer
+	toJSON() {
 		return { value: this.value };
 	}
 
-	// Required for devalue serializer
-	static __fromJSON(json: { value: string }) {
+	// Required for the serializer
+	static fromJSON(json: { value: string }) {
 		return new TestCustomClass(json.value);
 	}
-	static __classId = "TestCustomClass";
+	static classId = "TestCustomClass";
 
 	greet() {
 		return `Hello, ${this.value}!`;
@@ -123,36 +122,6 @@ describe("Utility Functions", () => {
 			expect(clonedObj).not.toBe(obj);
 			expect(clonedObj.value).toBe(bigNum);
 			expect(typeof clonedObj.value).toBe("bigint");
-		});
-	});
-
-	describe("mutability helpers", () => {
-		test("makeMutable should return the same object reference", () => {
-			const obj = { a: 1, b: { c: true } };
-			const mutableObj = makeMutable(obj);
-			expect(mutableObj).toBe(obj);
-			// We can't directly test the type-level change at runtime,
-			// but we can assert that it's the same object.
-			mutableObj.a = 2; // Should be allowed by type system
-			expect(obj.a).toBe(2);
-		});
-
-		test("makeImmutable should return the same object reference", () => {
-			const obj = { a: 1, b: { c: true } };
-			const immutableObj = makeImmutable(obj);
-			expect(immutableObj).toBe(obj);
-			// Similarly, this tests runtime behavior, not type-level immutability.
-			// The original object is still mutable if it wasn't frozen.
-			obj.a = 2;
-			expect(immutableObj.a).toBe(2);
-		});
-
-		test("makeImmutable should not deeply freeze the object at runtime", () => {
-			const obj = { a: 1, b: { c: true } };
-			const immutableObj = makeImmutable(obj);
-			// This demonstrates that makeImmutable is a type-level assertion, not a runtime deep freeze
-			obj.b.c = false;
-			expect(immutableObj.b.c).toBe(false);
 		});
 	});
 });

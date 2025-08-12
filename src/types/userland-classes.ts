@@ -4,7 +4,7 @@ type SugarBoxCompatibleClassInstance<TSerializedStructure> = {
 	 *
 	 * Is required for persistence.
 	 */
-	__toJSON: () => TSerializedStructure;
+	toJSON: () => TSerializedStructure;
 };
 
 /** All userland custom class constructors need to implement this if they must be part of the story's state */
@@ -15,10 +15,10 @@ type SugarBoxCompatibleClassConstructor<TSerializedStructure> = {
 	): SugarBoxCompatibleClassInstance<TSerializedStructure>;
 
 	/** Immutable id that must be stable (i.e never ever change if you wish to keep current saves compatible) since it is used to index registered classes in the engine */
-	readonly __classId: string;
+	readonly classId: string;
 
 	/** Static method for reviving the class */
-	__fromJSON(
+	fromJSON(
 		serializedData: TSerializedStructure,
 	): SugarBoxCompatibleClassInstance<TSerializedStructure>;
 
