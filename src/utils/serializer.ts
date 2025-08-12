@@ -16,7 +16,7 @@ const classRegistry = new Map<string, ClassConstructor>();
 
 // Register a custom class for serialization
 export function registerClass(classConstructor: ClassConstructor): void {
-	classRegistry.set(classConstructor.__classId, classConstructor);
+	classRegistry.set(classConstructor.classId, classConstructor);
 }
 
 // Custom serializer that handles classes manually using JSON
@@ -51,7 +51,7 @@ function transformForSerialization(
 			if (obj instanceof ClassConstructor) {
 				const transformedClass: TransformedCustomClass = {
 					__classId: classId,
-					__data: obj.__toJSON(),
+					__data: obj.toJSON(),
 					__type: "customClass",
 				};
 
@@ -146,7 +146,7 @@ function transformFromSerialization(obj: unknown): unknown {
 			if (objToTransform.__type === "customClass") {
 				const classConstructor = classRegistry.get(objToTransform.__classId);
 
-				return classConstructor?.__fromJSON(objToTransform.__data);
+				return classConstructor?.fromJSON(objToTransform.__data);
 			}
 
 			// Check if this is a serialized Date

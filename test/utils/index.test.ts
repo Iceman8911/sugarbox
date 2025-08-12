@@ -10,16 +10,16 @@ class TestCustomClass {
 		this.value = value;
 	}
 
-	// Required for devalue serializer
-	__toJSON() {
+	// Required for the serializer
+	toJSON() {
 		return { value: this.value };
 	}
 
-	// Required for devalue serializer
-	static __fromJSON(json: { value: string }) {
+	// Required for the serializer
+	static fromJSON(json: { value: string }) {
 		return new TestCustomClass(json.value);
 	}
-	static __classId = "TestCustomClass";
+	static classId = "TestCustomClass";
 
 	greet() {
 		return `Hello, ${this.value}!`;

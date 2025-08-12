@@ -34,13 +34,13 @@ async function initEngine() {
 			return this.inventory.items[0];
 		}
 
-		__toJSON() {
+		toJSON() {
 			return { ...this };
 		}
 
-		static __classId = "Player";
+		static classId = "Player";
 
-		static __fromJSON(
+		static fromJSON(
 			serializedData: SerializedPlayer,
 		): SugarBoxCompatibleClassInstance<SerializedPlayer> {
 			const player = new Player();
