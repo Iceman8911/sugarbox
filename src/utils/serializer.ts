@@ -21,7 +21,7 @@ export function registerClass(classConstructor: ClassConstructor): void {
 
 // Custom serializer that handles classes manually using JSON
 export function stringify(obj: unknown): string {
-	// Transform the object to handle custom classes
+	// Transform the object to handle custom classes and non-serializable types
 	const transformed = transformForSerialization(obj);
 
 	return JSON.stringify(transformed);
@@ -37,7 +37,7 @@ export function parse(str: string): any {
 function transformForSerialization(
 	obj: unknown,
 ): TransformedDataType | unknown {
-	if (obj === null || obj === undefined) {
+	if (obj == null) {
 		return obj;
 	}
 
