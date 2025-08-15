@@ -68,7 +68,7 @@ Upon navigation, a custom `:passageChange` event will be fired by the engine, an
 The `SugarboxEngine.init` method accepts an object with the following properties:
 
 - `name` (string): Unique name for your engine instance (used for saves, etc).
-- `variables` (object): The initial state variables.
+- `variables` (object | function): The initial state variables. Can be a static object or a function that receives the engine instance and returns the initial state.
 - `startPassage` (object): The starting passage, must have a unique `name` and `passage` data.
 - `otherPassages` (array): Additional passages to preload.
 - `config` (object, optional): Configuration options (see below).
@@ -77,11 +77,14 @@ The `SugarboxEngine.init` method accepts an object with the following properties
 - `settings` (object, optional): Initial settings data.
 - `migrations` (array, optional): Save migration handlers.
 
-Example:
+Example with static variables:
 ```typescript
 const engine = await SugarboxEngine.init({
   name: "MyStory",
-  variables: { ... },
+  variables: {
+    player: { name: "Hero", level: 1 },
+    gold: 100
+  },
   startPassage: { name: "Intro", passage: "Welcome!" },
   otherPassages: [ ... ],
   config: { maxStateCount: 50, saveSlots: 10 },
@@ -98,6 +101,57 @@ const engine = await SugarboxEngine.init({
     }
   ]
 });
+```
+
+### Dynamic Initial State
+
+You can also provide a function that generates the initial state dynamically. This is useful when you need access to the engine instance for random number generation or other engine properties:
+
+```typescript
+const engine = await SugarboxEngine.init({
+  name: "MyStory",
+  variables: (engine) => ({
+    player: {
+      name: "Hero",
+      level: 1,
+      startingGold: Math.floor(engine.random * 100) + 50 // Random 50-150
+    },
+    gameId: Math.floor(engine.random * 89999) + 10000, // Random 10000-99999
+    engineName: engine.name,
+  }),
+  startPassage: { name: "Intro", passage: "Welcome!" },
+});
+```
+
+**Important Notes:**
+- The function receives the fully initialized engine instance
+- You can safely access `engine.random`, `engine.name`, `engine.passageId`, etc.
+- This approach is completely safe from circular dependencies as the engine is fully constructed before the function is called
+
+### Random Utility Functions
+
+Since `engine.random` returns a float between 0 and 1, you'll often need helper functions for common random operations:
+
+```typescript
+// Random integer between min and max (inclusive)
+const randomInt = (engine: SugarboxEngine, min: number, max: number) =>
+  Math.floor(engine.random * (max - min + 1)) + min;
+
+// Random array element
+const randomPick = <T>(engine: SugarboxEngine, array: T[]): T =>
+  array[Math.floor(engine.random * array.length)];
+
+// Random boolean with optional probability
+const randomBool = (engine: SugarboxEngine, probability = 0.5) =>
+  engine.random < probability;
+
+// Usage in dynamic initial state
+const dynamicVariables = (engine) => ({
+  startingGold: randomInt(engine, 50, 150),
+  startingClass: randomPick(engine, ["Warrior", "Mage", "Rogue"]),
+  hasLuck: randomBool(engine, 0.1), // 10% chance
+});
+```
 ```
 
 ## Configuration Options

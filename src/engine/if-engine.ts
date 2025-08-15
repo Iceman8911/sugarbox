@@ -204,7 +204,16 @@ class SugarboxEngine<
 	private constructor(
 		/** Must be unique to prevent conflicts */
 		readonly name: string,
-		initialState: TVariables,
+		initialState:
+			| TVariables
+			| ((
+					engine: SugarboxEngine<
+						TPassageType,
+						TVariables,
+						TAchievementData,
+						TSettingsData
+					>,
+			  ) => TVariables),
 		startPassage: SugarBoxPassage<TPassageType>,
 		achievements: TAchievementData,
 		settings: TSettingsData,
@@ -216,13 +225,6 @@ class SugarboxEngine<
 			saveSlots,
 			initialSeed = Math.floor(Math.random() * 2 ** 32),
 		} = config;
-
-		/** Initialize the state with the provided initial state */
-		this.#initialState = {
-			...initialState,
-			__id: startPassage.name,
-			__seed: initialSeed,
-		};
 
 		this.#stateSnapshots = [{}];
 
@@ -242,6 +244,24 @@ class SugarboxEngine<
 		if (cache) {
 			this.#stateCache = cache;
 		}
+
+		const isInitialStateCallback = initialState instanceof Function;
+
+		/** Initialize the state with the provided initial state or an empty object if the initial state is a callback. This is to prevent circular dependencies that depend on the private variable */
+		this.#initialState = {
+			...(isInitialStateCallback ? ({} as TVariables) : initialState),
+			__id: startPassage.name,
+			__seed: initialSeed,
+		};
+
+		// If the initial state is a function, call it with the engine instance
+		if (isInitialStateCallback) {
+			this.#initialState = {
+				...initialState(this),
+				__id: startPassage.name,
+				__seed: initialSeed,
+			};
+		}
 	}
 
 	/** Use this to initialize the engine */
@@ -254,8 +274,20 @@ class SugarboxEngine<
 		/** Name of the engine. Engines initalized with the same name have access to the same saves, acheivements, and story-specific settings */
 		name: string;
 
-		/** The initial set of variables to be uses as the starting state */
-		variables: TVariables;
+		/** The initial set of variables to be uses as the starting state.
+		 *
+		 * May optionally be a callback in the case that the variables require data from the initialized engine (maybe, using the PRNG)
+		 */
+		variables:
+			| TVariables
+			| ((
+					engine: SugarboxEngine<
+						TPassageType,
+						TVariables,
+						TAchievementData,
+						TSettingsData
+					>,
+			  ) => TVariables);
 
 		/** Starting passage */
 		startPassage: SugarBoxPassage<TPassageType>;

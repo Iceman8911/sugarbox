@@ -1637,3 +1637,252 @@ describe("Error Conditions and Edge Cases", () => {
 		expect(didThrow).toBeTrue();
 	});
 });
+
+describe("Dynamic Initial State", () => {
+	test("should accept a static object as initial state", async () => {
+		const staticVariables = {
+			player: { name: "Static Player", level: 1 },
+			gold: 100,
+		};
+
+		const engine = await SugarboxEngine.init({
+			name: "StaticTest",
+			variables: staticVariables,
+			startPassage: { name: "Start", passage: "Welcome!" },
+			otherPassages: [],
+			config: {
+				persistence: createPersistenceAdapter(),
+			},
+		});
+
+		expect(engine.vars.player.name).toBe("Static Player");
+		expect(engine.vars.gold).toBe(100);
+	});
+
+	test("should accept a function that returns initial state", async () => {
+		const dynamicVariables = (engine: SugarboxEngine<string>) => ({
+			player: { name: "Dynamic Player", level: 1 },
+			randomStat: Math.floor(engine.random * 100) + 1, // Random 1-100
+			engineName: engine.name,
+		});
+
+		const engine = await SugarboxEngine.init({
+			name: "DynamicTest",
+			variables: dynamicVariables,
+			startPassage: { name: "Start", passage: "Welcome!" },
+			otherPassages: [],
+			config: {
+				persistence: createPersistenceAdapter(),
+				initialSeed: 12345, // Fixed seed for deterministic testing
+			},
+		});
+
+		expect(engine.vars.player.name).toBe("Dynamic Player");
+		expect(engine.vars.randomStat).toBeNumber();
+		expect(engine.vars.randomStat).toBeGreaterThanOrEqual(1);
+		expect(engine.vars.randomStat).toBeLessThanOrEqual(100);
+		expect(engine.vars.engineName).toBe("DynamicTest");
+	});
+
+	test("should provide access to engine properties in dynamic initial state", async () => {
+		const dynamicVariables = (
+			engine: SugarboxEngine<
+				string,
+				{
+					engineName: string;
+					passageId: string;
+					randomValue: number;
+					hasAchievements: boolean;
+					hasSettings: boolean;
+				},
+				{
+					firstLogin: boolean;
+				},
+				{
+					volume: number;
+				}
+			>,
+		) => {
+			// Test that we can access various engine properties safely
+			return {
+				engineName: engine.name,
+				passageId: engine.passageId,
+				randomValue: engine.random,
+				hasAchievements: typeof engine.achievements === "object",
+				hasSettings: typeof engine.settings === "object",
+			};
+		};
+
+		const engine = await SugarboxEngine.init({
+			name: "PropertyAccessTest",
+			variables: dynamicVariables,
+			startPassage: { name: "TestStart", passage: "Test content" },
+			otherPassages: [],
+			achievements: { firstLogin: false },
+			settings: { volume: 0.8 },
+			config: {
+				persistence: createPersistenceAdapter(),
+			},
+		});
+
+		expect(engine.vars.engineName).toBe("PropertyAccessTest");
+		expect(engine.vars.passageId).toBe("TestStart");
+		expect(engine.vars.randomValue).toBeNumber();
+		expect(engine.vars.hasAchievements).toBe(true);
+		expect(engine.vars.hasSettings).toBe(true);
+	});
+
+	test("should preserve __id and __seed properties with dynamic initial state", async () => {
+		const dynamicVariables = (_engine: SugarboxEngine<string>) => ({
+			customProp: "test",
+			__id: "ShouldBeOverwritten",
+			__seed: 99999,
+		});
+
+		const engine = await SugarboxEngine.init({
+			name: "PreservePropsTest",
+			variables: dynamicVariables,
+			startPassage: { name: "CorrectStart", passage: "Content" },
+			otherPassages: [],
+			config: {
+				persistence: createPersistenceAdapter(),
+				initialSeed: 54321,
+			},
+		});
+
+		expect(engine.vars.customProp).toBe("test");
+		expect(engine.vars.__id).toBe("CorrectStart");
+		expect(engine.vars.__seed).toBe(54321);
+	});
+
+	test("dynamic initial state should work with save/load", async () => {
+		const persistence = createPersistenceAdapter();
+
+		const dynamicVariables = (engine: SugarboxEngine<string>) => ({
+			player: { name: "Saveable Player", level: 1 },
+			initialRandom: Math.floor(engine.random * 1000) + 1, // Random 1-1000
+		});
+
+		const engine = await SugarboxEngine.init({
+			name: "SaveLoadDynamicTest",
+			variables: dynamicVariables,
+			startPassage: { name: "Start", passage: "Welcome!" },
+			otherPassages: [],
+			config: {
+				persistence: persistence,
+				initialSeed: 42,
+			},
+		});
+
+		const originalRandom = engine.vars.initialRandom;
+
+		// Modify state and save
+		engine.setVars((state) => {
+			state.player = { name: "Modified Player", level: 2 };
+		});
+		await engine.saveToSaveSlot(1);
+
+		// Create new engine and load
+		const newEngine = await SugarboxEngine.init({
+			name: "SaveLoadDynamicTest",
+			variables: dynamicVariables,
+			startPassage: { name: "Start", passage: "Welcome!" },
+			otherPassages: [],
+			config: {
+				persistence: persistence, // Use same persistence adapter
+				initialSeed: 42,
+			},
+		});
+
+		await newEngine.loadFromSaveSlot(1);
+
+		expect(newEngine.vars.player.name).toBe("Modified Player");
+		expect(newEngine.vars.player.level).toBe(2);
+		expect(newEngine.vars.initialRandom).toBe(originalRandom);
+	});
+
+	test("should handle complex dynamic state with custom classes", async () => {
+		class DynamicPlayer
+			implements
+				SugarBoxCompatibleClassInstance<ReturnType<DynamicPlayer["toJSON"]>>
+		{
+			name: string;
+			creationTime: number;
+
+			constructor(name: string) {
+				this.name = name;
+				this.creationTime = Date.now();
+			}
+
+			toJSON() {
+				return { name: this.name, creationTime: this.creationTime };
+			}
+
+			static classId = "DynamicPlayer";
+
+			static fromJSON(data: ReturnType<DynamicPlayer["toJSON"]>) {
+				const player = new DynamicPlayer(data.name);
+				player.creationTime = data.creationTime;
+				return player;
+			}
+		}
+
+		const dynamicVariables = (engine: SugarboxEngine<string>) => ({
+			player: new DynamicPlayer(`Player-${engine.name}`),
+			gameId: Math.floor(engine.random * 90000) + 10000, // Random 10000-99999
+		});
+
+		const engine = await SugarboxEngine.init({
+			name: "DynamicClassTest",
+			variables: dynamicVariables,
+			startPassage: { name: "Start", passage: "Welcome!" },
+			otherPassages: [],
+			classes: [DynamicPlayer],
+			config: {
+				persistence: createPersistenceAdapter(),
+				initialSeed: 777,
+			},
+		});
+
+		expect(engine.vars.player).toBeInstanceOf(DynamicPlayer);
+		expect(engine.vars.player.name).toBe("Player-DynamicClassTest");
+		expect(engine.vars.gameId).toBeNumber();
+		expect(engine.vars.gameId).toBeGreaterThanOrEqual(10000);
+		expect(engine.vars.gameId).toBeLessThanOrEqual(99999);
+	});
+
+	test("should generate deterministic results with same seed in dynamic state", async () => {
+		const dynamicVariables = (engine: SugarboxEngine<string>) => {
+			const rand1 = engine.random;
+			const rand2 = engine.random;
+			const rand3 = engine.random;
+			const choices = ["A", "B", "C"];
+			return {
+				random1: Math.floor(rand1 * 100) + 1, // Random 1-100
+				random2: rand2,
+				random3: choices[Math.floor(rand3 * choices.length)],
+			};
+		};
+
+		const createEngine = () =>
+			SugarboxEngine.init({
+				name: "DeterministicTest",
+				variables: dynamicVariables,
+				startPassage: { name: "Start", passage: "Welcome!" },
+				otherPassages: [],
+				config: {
+					persistence: createPersistenceAdapter(),
+					initialSeed: 999,
+				},
+			});
+
+		const [engine1, engine2] = await Promise.all([
+			createEngine(),
+			createEngine(),
+		]);
+
+		expect(engine1.vars.random1).toBe(engine2.vars.random1);
+		expect(engine1.vars.random2).toBe(engine2.vars.random2);
+		expect(engine1.vars.random3).toBe(engine2.vars.random3);
+	});
+});
