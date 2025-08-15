@@ -1417,7 +1417,7 @@ class SugarboxEngine<
 	}
 
 	get #currentStatePrng(): PRNG {
-		return this.#getPrngFromSeed(this.#varsWithMetadata.__seed);
+		return this.#getPrngFromSeed(this.#currentStatePrngSeed);
 	}
 }
 
