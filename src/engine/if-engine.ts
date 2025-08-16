@@ -10,6 +10,7 @@ import { compress, decompress } from "@zalari/string-compression-utils";
 import type { SugarBoxCacheAdapter } from "../types/adapters";
 import type {
 	SugarBoxAchievementsKey,
+	SugarBoxAnyKey,
 	SugarBoxAutoSaveKey,
 	SugarBoxConfig,
 	SugarBoxExportData,
@@ -694,7 +695,7 @@ class SugarboxEngine<
 
 				SugarboxEngine.#assertPersistenceIsAvailable(persistence);
 
-				const saveKey = this.#getSaveKeyFromSaveSlotNumber(saveSlot);
+				const saveKey = this.#getStorageKey(saveSlot);
 
 				const saveData: SugarBoxSaveData<TVariables> = {
 					intialState: this.#initialState,
@@ -730,7 +731,7 @@ class SugarboxEngine<
 
 				SugarboxEngine.#assertPersistenceIsAvailable(persistence);
 
-				const saveSlotKey = this.#getSaveKeyFromSaveSlotNumber(saveSlot);
+				const saveSlotKey = this.#getStorageKey(saveSlot);
 
 				const serializedSaveData = await persistence.get(saveSlotKey);
 
@@ -757,7 +758,7 @@ class SugarboxEngine<
 
 		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
 
-		const saveSlotKey = this.#getSaveKeyFromSaveSlotNumber(saveSlot);
+		const saveSlotKey = this.#getStorageKey(saveSlot);
 
 		return persistence.delete(saveSlotKey);
 	}
@@ -913,7 +914,7 @@ class SugarboxEngine<
 				await decompressJsonStringIfCompressed(serializedSaveData),
 			);
 
-			if (key === this.#getSaveKeyFromSaveSlotNumber()) {
+			if (key === this.#getStorageKey()) {
 				yield { type: "autosave", data: saveData };
 			} else {
 				const slotNumber = parseInt(key.match(/slot(\d+)/)?.[1] ?? "-1");
@@ -1016,28 +1017,23 @@ class SugarboxEngine<
 		}
 	}
 
-	/** If not given any argument, defaults to the autosave slot */
-	#getSaveKeyFromSaveSlotNumber(): SugarBoxAutoSaveKey;
-	#getSaveKeyFromSaveSlotNumber(saveSlot: number): SugarBoxNormalSaveKey;
-	#getSaveKeyFromSaveSlotNumber(
-		saveSlot?: number,
-	): SugarBoxNormalSaveKey | SugarBoxAutoSaveKey;
-	#getSaveKeyFromSaveSlotNumber(
-		saveSlot?: number,
-	): SugarBoxNormalSaveKey | SugarBoxAutoSaveKey {
-		if (!saveSlot) return `sugarbox-${this.name}-autosave`;
+	/** Depending on the parameter, returns a key used for indexing specific data stored in the provided persistence */
+	#getStorageKey(type?: "autosave"): SugarBoxAutoSaveKey;
+	#getStorageKey(type: "achievements"): SugarBoxAchievementsKey;
+	#getStorageKey(type: "settings"): SugarBoxSettingsKey;
+	#getStorageKey(type: number): SugarBoxNormalSaveKey;
+	#getStorageKey(type: number | undefined): SugarBoxSaveKey;
+	#getStorageKey(
+		type?: "autosave" | "achievements" | "settings" | number,
+	): SugarBoxAnyKey {
+		const suffix =
+			typeof type === "number"
+				? (`slot${type}` as const)
+				: (type ?? "autosave");
 
-		this.#assertSaveSlotIsValid(saveSlot);
+		if (typeof type === "number") this.#assertSaveSlotIsValid(type);
 
-		return `sugarbox-${this.name}-slot${saveSlot}`;
-	}
-
-	get #achivementsStorageKey(): SugarBoxAchievementsKey {
-		return `sugarbox-${this.name}-achievements`;
-	}
-
-	get #settingsStorageKey(): SugarBoxSettingsKey {
-		return `sugarbox-${this.name}-settings`;
+		return `sugarbox-${this.name}-${suffix}`;
 	}
 
 	async *#getKeysOfPresentSaves(): AsyncGenerator<SugarBoxSaveKey> {
@@ -1057,14 +1053,14 @@ class SugarboxEngine<
 			}
 		} else {
 			// Fallback to using get() to get the keys
-			const autosaveKey = this.#getSaveKeyFromSaveSlotNumber();
+			const autosaveKey = this.#getStorageKey();
 
 			if (await persistence.get(autosaveKey)) {
 				yield autosaveKey;
 			}
 
 			for (let i = 0; i < this.#config.saveSlots; i++) {
-				const key = this.#getSaveKeyFromSaveSlotNumber(i);
+				const key = this.#getStorageKey(i);
 
 				if (await persistence.get(key)) {
 					yield key;
@@ -1363,7 +1359,7 @@ class SugarboxEngine<
 		SugarboxEngine.#assertPersistenceIsAvailable(persistenceAdapter);
 
 		await persistenceAdapter.set(
-			this.#achivementsStorageKey,
+			this.#getStorageKey("achievements"),
 			JSON.stringify(this.#achievements),
 		);
 	}
@@ -1374,7 +1370,7 @@ class SugarboxEngine<
 		SugarboxEngine.#assertPersistenceIsAvailable(persistenceAdapter);
 
 		const serializedAchievements = await persistenceAdapter.get(
-			this.#achivementsStorageKey,
+			this.#getStorageKey("achievements"),
 		);
 
 		if (serializedAchievements) {
@@ -1388,7 +1384,7 @@ class SugarboxEngine<
 		SugarboxEngine.#assertPersistenceIsAvailable(persistenceAdapter);
 
 		await persistenceAdapter.set(
-			this.#settingsStorageKey,
+			this.#getStorageKey("settings"),
 			JSON.stringify(this.#settings),
 		);
 	}
@@ -1399,7 +1395,7 @@ class SugarboxEngine<
 		SugarboxEngine.#assertPersistenceIsAvailable(persistenceAdapter);
 
 		const serializedSettings = await persistenceAdapter.get(
-			this.#settingsStorageKey,
+			this.#getStorageKey("settings"),
 		);
 
 		if (serializedSettings) {
