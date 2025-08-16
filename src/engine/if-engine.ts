@@ -1421,13 +1421,11 @@ class SugarboxEngine<
 	}
 }
 
-async function decompressJsonStringIfCompressed(
+const decompressJsonStringIfCompressed = async (
 	possiblyCompressedString: string,
-): Promise<string> {
-	return isStringJsonObjectOrCompressedString(possiblyCompressedString) ===
-		"json"
+): Promise<string> =>
+	isStringJsonObjectOrCompressedString(possiblyCompressedString) === "json"
 		? possiblyCompressedString
 		: decompress(possiblyCompressedString, SAVE_COMPRESSION_FORMAT);
-}
 
 export { SugarboxEngine };

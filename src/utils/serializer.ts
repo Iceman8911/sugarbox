@@ -14,34 +14,29 @@ type ClassConstructor = SugarBoxCompatibleClassConstructor<unknown>;
 // Custom serializer that uses JSON with custom class support
 const classRegistry = new Map<string, ClassConstructor>();
 
+const isArray = (obj: unknown): obj is Array<unknown> => Array.isArray(obj);
+
 // Register a custom class for serialization
-export function registerClass(classConstructor: ClassConstructor): void {
+export const registerClass = (
+	classConstructor: ClassConstructor,
+): Map<string, ClassConstructor> =>
 	classRegistry.set(classConstructor.classId, classConstructor);
-}
 
-// Custom serializer that handles classes manually using JSON
-export function stringify(obj: unknown): string {
-	// Transform the object to handle custom classes and non-serializable types
-	const transformed = transformForSerialization(obj);
-
-	return JSON.stringify(transformed);
-}
+// Transform the object to handle custom classes and non-serializable types
+const stringify = (obj: unknown): string =>
+	JSON.stringify(transformForSerialization(obj));
 
 // biome-ignore lint/suspicious/noExplicitAny: <Impractical to specify all types here>
-export function parse(str: string): any {
-	const parsed = JSON.parse(str);
+const parse = (str: string): any => transformFromSerialization(JSON.parse(str));
 
-	return transformFromSerialization(parsed);
-}
-
-function transformForSerialization(
+const transformForSerialization = (
 	obj: unknown,
-): TransformedDataType | unknown {
+): TransformedDataType | unknown => {
 	if (obj == null) {
 		return obj;
 	}
 
-	if (Array.isArray(obj)) {
+	if (isArray(obj)) {
 		return obj.map(transformForSerialization);
 	}
 
@@ -72,7 +67,7 @@ function transformForSerialization(
 		// Handle Set objects
 		if (obj instanceof Set) {
 			const transformedSet: TransformedSet = {
-				__data: Array.from(obj).map(transformForSerialization),
+				__data: [...obj].map(transformForSerialization),
 				__type: "set",
 			};
 
@@ -83,7 +78,7 @@ function transformForSerialization(
 		if (obj instanceof Map) {
 			const transformedMap: TransformedMap = {
 				__type: "map",
-				__data: Array.from(obj.entries()).map(([k, v]) => [
+				__data: [...obj].map(([k, v]) => [
 					transformForSerialization(k),
 					transformForSerialization(v),
 				]),
@@ -106,8 +101,9 @@ function transformForSerialization(
 		// Handle regular objects
 		const result: Record<string, unknown> = {};
 
-		for (const [key, value] of Object.entries(obj)) {
-			result[key] = transformForSerialization(value);
+		for (const key in obj) {
+			//@ts-expect-error This is not an error
+			result[key] = transformForSerialization(obj[key]);
 		}
 
 		return result;
@@ -124,14 +120,14 @@ function transformForSerialization(
 	}
 
 	return obj;
-}
+};
 
-function transformFromSerialization(obj: unknown): unknown {
-	if (obj === null || obj === undefined) {
+const transformFromSerialization = (obj: unknown): unknown => {
+	if (obj == null) {
 		return obj;
 	}
 
-	if (Array.isArray(obj)) {
+	if (isArray(obj)) {
 		return obj.map(transformFromSerialization);
 	}
 
@@ -182,14 +178,16 @@ function transformFromSerialization(obj: unknown): unknown {
 			// Handle regular objects
 			const result: Record<string, unknown> = {};
 
-			for (const [key, value] of Object.entries(obj)) {
-				result[key] = transformFromSerialization(value);
+			for (const key in obj) {
+				//@ts-expect-error This is not an error
+				result[key] = transformFromSerialization(obj[key]);
 			}
+
 			return result;
 		}
 	}
 
 	return obj;
-}
+};
 
 export { stringify as serialize, parse as deserialize };

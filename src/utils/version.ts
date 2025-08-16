@@ -11,10 +11,11 @@ type SemanticVersionString = `${number}.${number}.${number}`;
 
 const getMajorAndMinorAndPatchFromVersionString = (
 	versionString: SemanticVersionString,
-): SemanticVersionTuple => {
+): SemanticVersionTuple =>
 	//@ts-expect-error This is a valid tuple type, but TS doesn't recognize it as such
-	return versionString.split(".").map((num) => Number(num));
-};
+	versionString
+		.split(".")
+		.map((num) => Number(num));
 
 const isSaveCompatibleWithEngine = (
 	saveVersion: SemanticVersionString,
