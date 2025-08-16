@@ -267,7 +267,7 @@ class SugarboxEngine<
 
 	/** Use this to initialize the engine */
 	static async init<
-		TPassageType extends string | object,
+		TPassageType,
 		TVariables extends Record<string, unknown> = Record<string, unknown>,
 		TAchievementData extends Record<string, unknown> = Record<string, boolean>,
 		TSettingsData extends Record<string, unknown> = Record<string, unknown>,
