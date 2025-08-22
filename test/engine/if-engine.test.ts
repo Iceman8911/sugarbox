@@ -1513,6 +1513,177 @@ describe("PRNG and Random Number Generation", () => {
 		// Should get the same sequence
 		expect(afterImport).toEqual(afterExport);
 	});
+
+	test("should handle recursive objects (inventory-item relationships) through save/load cycle", async () => {
+		// Define interfaces for serialization
+		interface InventoryData {
+			id: string;
+			items: ItemData[];
+		}
+
+		interface ItemData {
+			name: string;
+			// Note: no inventory reference to avoid circular dependency
+		}
+
+		// Inventory class that contains items
+		class Inventory implements SugarBoxCompatibleClassInstance<InventoryData> {
+			static readonly classId = "GameInventory";
+
+			id: string;
+			items: Item[] = [];
+
+			constructor(id: string) {
+				this.id = id;
+			}
+
+			addItem(name: string): Item {
+				const item = new Item(name, this);
+				this.items.push(item);
+				return item;
+			}
+
+			toJSON(): InventoryData {
+				return {
+					id: this.id,
+					items: this.items.map((item) => item.toJSON()),
+				};
+			}
+
+			static fromJSON(data: InventoryData): Inventory {
+				const inventory = new Inventory(data.id);
+				// Reconstruct items and re-establish parent relationships
+				inventory.items = data.items.map((itemData) =>
+					Item.fromJSONWithParent(itemData, inventory),
+				);
+				return inventory;
+			}
+		}
+
+		// Item class that references back to inventory (circular reference)
+		class Item implements SugarBoxCompatibleClassInstance<ItemData> {
+			name: string;
+			inventory: Inventory;
+
+			constructor(name: string, inventory: Inventory) {
+				this.name = name;
+				this.inventory = inventory;
+			}
+
+			getInventoryId(): string {
+				return this.inventory.id;
+			}
+
+			toJSON(): ItemData {
+				// Exclude inventory reference to break circular dependency
+				return { name: this.name };
+			}
+
+			static fromJSONWithParent(data: ItemData, inventory: Inventory): Item {
+				return new Item(data.name, inventory);
+			}
+		}
+
+		// Create engine with custom classes
+		const testEngine = await SugarboxEngine.init({
+			name: "RecursiveObjectTest",
+			startPassage: { name: "Start", passage: "Test passage" },
+			otherPassages: [],
+			variables: {
+				playerInventory: new Inventory("player"),
+				chestInventory: new Inventory("treasure-chest"),
+			},
+			config: {
+				persistence: createPersistenceAdapter(),
+			},
+			classes: [Inventory],
+		});
+
+		// Add items to inventories (creates circular references)
+		testEngine.setVars((vars) => {
+			vars.playerInventory.addItem("Magic Sword");
+			vars.playerInventory.addItem("Health Potion");
+			vars.chestInventory.addItem("Golden Coin");
+			vars.chestInventory.addItem("Ancient Key");
+		});
+
+		// Verify circular references exist
+		const sword = testEngine.vars.playerInventory.items[0];
+		const coin = testEngine.vars.chestInventory.items[0];
+		expect(sword.inventory).toBe(testEngine.vars.playerInventory);
+		expect(coin.inventory).toBe(testEngine.vars.chestInventory);
+
+		// Save the game state
+		await testEngine.saveToSaveSlot(1);
+
+		// Modify state to verify load restores correctly
+		testEngine.setVars((vars) => {
+			vars.playerInventory = new Inventory("modified");
+			vars.chestInventory = new Inventory("modified");
+		});
+
+		// Verify state is modified
+		expect(testEngine.vars.playerInventory.id).toBe("modified");
+		expect(testEngine.vars.playerInventory.items.length).toBe(0);
+
+		// Load the saved state
+		await testEngine.loadFromSaveSlot(1);
+
+		// Verify the recursive relationships are properly restored
+		expect(testEngine.vars.playerInventory).toBeInstanceOf(Inventory);
+		expect(testEngine.vars.chestInventory).toBeInstanceOf(Inventory);
+		expect(testEngine.vars.playerInventory.id).toBe("player");
+		expect(testEngine.vars.chestInventory.id).toBe("treasure-chest");
+
+		// Verify items are restored with correct parent relationships
+		const loadedSword = testEngine.vars.playerInventory.items.find(
+			(item) => item.name === "Magic Sword",
+		);
+		const loadedPotion = testEngine.vars.playerInventory.items.find(
+			(item) => item.name === "Health Potion",
+		);
+		const loadedCoin = testEngine.vars.chestInventory.items.find(
+			(item) => item.name === "Golden Coin",
+		);
+		const loadedKey = testEngine.vars.chestInventory.items.find(
+			(item) => item.name === "Ancient Key",
+		);
+
+		expect(loadedSword).toBeInstanceOf(Item);
+		expect(loadedPotion).toBeInstanceOf(Item);
+		expect(loadedCoin).toBeInstanceOf(Item);
+		expect(loadedKey).toBeInstanceOf(Item);
+
+		// Verify circular references are properly reconstructed
+		expect(loadedSword?.inventory).toBe(testEngine.vars.playerInventory);
+		expect(loadedPotion?.inventory).toBe(testEngine.vars.playerInventory);
+		expect(loadedCoin?.inventory).toBe(testEngine.vars.chestInventory);
+		expect(loadedKey?.inventory).toBe(testEngine.vars.chestInventory);
+
+		// Verify methods work on reconstructed objects
+		expect(loadedSword?.getInventoryId()).toBe("player");
+		expect(loadedCoin?.getInventoryId()).toBe("treasure-chest");
+
+		// Test export/import cycle as well
+		const exportData = await testEngine.saveToExport();
+
+		// Modify state again
+		testEngine.setVars((vars) => {
+			vars.playerInventory = new Inventory("export-test");
+		});
+
+		// Import the exported data
+		await testEngine.loadFromExport(exportData);
+
+		// Verify everything is restored correctly again
+		expect(testEngine.vars.playerInventory.id).toBe("player");
+		expect(testEngine.vars.playerInventory.items.length).toBe(2);
+
+		const exportedSword = testEngine.vars.playerInventory.items.find(
+			(item) => item.name === "Magic Sword",
+		);
+		expect(exportedSword?.inventory).toBe(testEngine.vars.playerInventory);
+	});
 });
 
 describe("Error Conditions and Edge Cases", () => {

@@ -275,6 +275,70 @@ The engine's serialization system supports the following data types in your stor
 
 If you need to store unsupported types, consider converting them to supported formats (e.g., functions to strings, or Error objects to plain objects with error details).
 
+#### Handling Recursive Objects
+
+For objects with circular references (e.g., parent-child relationships), break the circular reference during serialization and reconstruct it during deserialization:
+
+```typescript
+interface InventoryData {
+  id: string;
+  items: ItemData[];
+}
+
+interface ItemData {
+  name: string;
+  // Note: no inventory reference to avoid circular dependency
+}
+
+class Inventory implements SugarBoxCompatibleClassInstance<InventoryData> {
+  static readonly classId = "Inventory";
+
+  id: string;
+  items: Item[] = [];
+
+  constructor(id: string) {
+    this.id = id;
+  }
+
+  toJSON(): InventoryData {
+    return {
+      id: this.id,
+      items: this.items.map(item => item.toJSON())
+    };
+  }
+
+  static fromJSON(data: InventoryData): Inventory {
+    const inventory = new Inventory(data.id);
+    // Reconstruct items and re-establish parent relationships
+    inventory.items = data.items.map(itemData =>
+      Item.fromJSONWithParent(itemData, inventory)
+    );
+    return inventory;
+  }
+}
+
+class Item implements SugarBoxCompatibleClassInstance<ItemData> {
+  name: string;
+  inventory: Inventory;
+
+  constructor(name: string, inventory: Inventory) {
+    this.name = name;
+    this.inventory = inventory;
+  }
+
+  toJSON(): ItemData {
+    // Exclude inventory reference to break circular dependency
+    return { name: this.name };
+  }
+
+  static fromJSONWithParent(data: ItemData, inventory: Inventory): Item {
+    return new Item(data.name, inventory);
+  }
+}
+
+engine.registerClasses(Inventory);
+```
+
 Example:
 ```typescript
 class Player {

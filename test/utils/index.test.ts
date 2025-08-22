@@ -124,4 +124,211 @@ describe("Utility Functions", () => {
 			expect(typeof clonedObj.value).toBe("bigint");
 		});
 	});
+
+	describe("Recursive Objects (Circular References)", () => {
+		// Define interfaces for serialization
+		interface InventoryData {
+			id: string;
+			items: ItemData[];
+		}
+
+		interface ItemData {
+			name: string;
+			// Note: no inventory reference to avoid circular dependency
+		}
+
+		// Inventory class that contains items
+		class Inventory {
+			static readonly classId = "Inventory";
+
+			id: string;
+			items: Item[] = [];
+
+			constructor(id: string) {
+				this.id = id;
+			}
+
+			addItem(name: string): Item {
+				const item = new Item(name, this);
+				this.items.push(item);
+				return item;
+			}
+
+			toJSON(): InventoryData {
+				return {
+					id: this.id,
+					items: this.items.map((item) => item.toJSON()),
+				};
+			}
+
+			static fromJSON(data: InventoryData): Inventory {
+				const inventory = new Inventory(data.id);
+				// Reconstruct items and re-establish parent relationships
+				inventory.items = data.items.map((itemData) =>
+					Item.fromJSONWithParent(itemData, inventory),
+				);
+				return inventory;
+			}
+		}
+
+		// Item class that references back to inventory (circular reference)
+		class Item {
+			name: string;
+			inventory: Inventory;
+
+			constructor(name: string, inventory: Inventory) {
+				this.name = name;
+				this.inventory = inventory;
+			}
+
+			toJSON(): ItemData {
+				// Exclude inventory reference to break circular dependency
+				return { name: this.name };
+			}
+
+			static fromJSONWithParent(data: ItemData, inventory: Inventory): Item {
+				return new Item(data.name, inventory);
+			}
+		}
+
+		// Register class for serialization
+		registerClass(Inventory);
+
+		test("should serialize and deserialize inventory with items without circular reference issues", () => {
+			// Create inventory with items (this creates circular references)
+			const inventory = new Inventory("main-inventory");
+			const sword = inventory.addItem("Magic Sword");
+			const shield = inventory.addItem("Golden Shield");
+			const potion = inventory.addItem("Health Potion");
+
+			// Verify circular references exist in the original objects
+			expect(sword.inventory).toBe(inventory);
+			expect(shield.inventory).toBe(inventory);
+			expect(potion.inventory).toBe(inventory);
+			expect(inventory.items).toContain(sword);
+			expect(inventory.items).toContain(shield);
+			expect(inventory.items).toContain(potion);
+
+			// Clone should work without circular reference issues
+			const clonedInventory = clone(inventory);
+
+			// Verify the clone maintains the structure
+			expect(clonedInventory).toBeInstanceOf(Inventory);
+			expect(clonedInventory.id).toBe("main-inventory");
+			expect(clonedInventory.items.length).toBe(3);
+
+			// Verify items are properly reconstructed
+			const clonedSword = clonedInventory.items.find(
+				(item) => item.name === "Magic Sword",
+			);
+			const clonedShield = clonedInventory.items.find(
+				(item) => item.name === "Golden Shield",
+			);
+			const clonedPotion = clonedInventory.items.find(
+				(item) => item.name === "Health Potion",
+			);
+
+			expect(clonedSword).toBeInstanceOf(Item);
+			expect(clonedShield).toBeInstanceOf(Item);
+			expect(clonedPotion).toBeInstanceOf(Item);
+
+			// Verify parent-child relationships are reconstructed correctly
+			expect(clonedSword?.inventory).toBe(clonedInventory);
+			expect(clonedShield?.inventory).toBe(clonedInventory);
+			expect(clonedPotion?.inventory).toBe(clonedInventory);
+
+			// Verify it's a deep clone (different objects)
+			expect(clonedInventory).not.toBe(inventory);
+			expect(clonedSword).not.toBe(sword);
+			expect(clonedShield).not.toBe(shield);
+			expect(clonedPotion).not.toBe(potion);
+		});
+
+		test("should handle nested inventories with items correctly", () => {
+			// Create a wrapper class for the game state to ensure proper serialization
+			class GameState {
+				static readonly classId = "GameState";
+
+				player: {
+					name: string;
+					mainInventory: Inventory;
+					backpack: Inventory;
+				};
+
+				constructor(
+					playerName: string,
+					mainInventory: Inventory,
+					backpack: Inventory,
+				) {
+					this.player = {
+						name: playerName,
+						mainInventory,
+						backpack,
+					};
+				}
+
+				toJSON() {
+					return {
+						player: {
+							name: this.player.name,
+							mainInventory: this.player.mainInventory.toJSON(),
+							backpack: this.player.backpack.toJSON(),
+						},
+					};
+				}
+
+				static fromJSON(data: any): GameState {
+					const mainInventory = Inventory.fromJSON(data.player.mainInventory);
+					const backpack = Inventory.fromJSON(data.player.backpack);
+					return new GameState(data.player.name, mainInventory, backpack);
+				}
+			}
+
+			registerClass(GameState);
+
+			// Create a more complex scenario with nested relationships
+			const mainInventory = new Inventory("main");
+			const backpack = new Inventory("backpack");
+
+			// Add items to both inventories
+			const mainSword = mainInventory.addItem("Main Sword");
+			const backpackPotion = backpack.addItem("Backup Potion");
+			backpack.addItem("Secret Key");
+
+			// Create the game state
+			const gameState = new GameState("Hero", mainInventory, backpack);
+
+			const clonedState = clone(gameState);
+
+			// Verify structure is maintained
+			expect(clonedState).toBeInstanceOf(GameState);
+			expect(clonedState.player.name).toBe("Hero");
+			expect(clonedState.player.mainInventory).toBeInstanceOf(Inventory);
+			expect(clonedState.player.backpack).toBeInstanceOf(Inventory);
+
+			// Verify relationships are correct
+			const clonedMainSword = clonedState.player.mainInventory.items[0];
+			const clonedBackpackPotion = clonedState.player.backpack.items[0];
+			const clonedBackpackKey = clonedState.player.backpack.items[1];
+
+			expect(clonedMainSword.inventory).toBe(clonedState.player.mainInventory);
+			expect(clonedBackpackPotion.inventory).toBe(clonedState.player.backpack);
+			expect(clonedBackpackKey.inventory).toBe(clonedState.player.backpack);
+
+			// Verify it's properly deep cloned
+			expect(clonedState).not.toBe(gameState);
+			expect(clonedMainSword).not.toBe(mainSword);
+			expect(clonedBackpackPotion).not.toBe(backpackPotion);
+		});
+
+		test("should handle empty inventory correctly", () => {
+			const emptyInventory = new Inventory("empty");
+			const clonedEmpty = clone(emptyInventory);
+
+			expect(clonedEmpty).toBeInstanceOf(Inventory);
+			expect(clonedEmpty.id).toBe("empty");
+			expect(clonedEmpty.items).toEqual([]);
+			expect(clonedEmpty).not.toBe(emptyInventory);
+		});
+	});
 });
