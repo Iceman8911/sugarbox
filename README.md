@@ -1,4 +1,4 @@
-# Sugarbox
+# sugarbox
 
 Loosely based off *Twine SugarCube*, **Sugarbox** is a lightweight (~4.5KB minified and gzipped), headless, unopinionated, and framework-agnostic library to help with developing web-based interactive fiction.
 
@@ -18,6 +18,10 @@ Loosely based off *Twine SugarCube*, **Sugarbox** is a lightweight (~4.5KB minif
 
 ```bash
 npm install sugarbox
+# or
+bun install sugarbox
+# or
+yarn add sugarbox
 ```
 
 ## Usage
@@ -128,9 +132,9 @@ const engine = await SugarboxEngine.init({
 - You can safely access `engine.random`, `engine.name`, `engine.passageId`, etc.
 - This approach is completely safe from circular dependencies as the engine is fully constructed before the function is called
 
-### Random Utility Functions
+### Helper Functions for Random Operations
 
-Since `engine.random` returns a float between 0 and 1, you'll often need helper functions for common random operations:
+Since `engine.random` returns a float between 0 and 1, you'll often want to create helper functions for common random operations. Here are some examples you can add to your project:
 
 ```typescript
 // Random integer between min and max (inclusive)
@@ -152,6 +156,8 @@ const dynamicVariables = (engine) => ({
   hasLuck: randomBool(engine, 0.1), // 10% chance
 });
 ```
+
+**Note:** These are not built-in functions - they're helper utilities you can create in your own project to work with the engine's PRNG.
 ```
 
 ## Configuration Options
@@ -635,8 +641,8 @@ Here's a quick overview of the main methods and properties:
 | `index`                 | Get current position in state history |
 | `forward(steps?)`       | Move forward in state history |
 | `backward(steps?)`      | Move backward in state history |
-| `addPassage(id, data)`  | Add a single passage |
-| `addPassages(arr)`      | Add multiple passages |
+| `addPassage(passageId, passageData)` | Add a single passage |
+| `addPassages(passages)` | Add multiple passages |
 | `navigateTo(id)`        | Move to a passage |
 | `on(event, fn)`         | Listen for an event |
 | `off(event, fn)`        | Remove event listener |
@@ -830,8 +836,10 @@ import {
   SugarboxEngine,
   type SugarBoxConfig,
   type SugarBoxCompatibleClassInstance,
-  type SugarBoxCompatibleClassConstructor,
-  type SugarBoxCompatibleClassConstructorCheck
+  type SugarBoxCompatibleClassConstructorCheck,
+  type SugarBoxAnyKey,
+  type SugarBoxPersistenceAdapter,
+  type SugarBoxCacheAdapter
 } from "sugarbox";
 
 // Main configuration type
@@ -844,9 +852,9 @@ const config: SugarBoxConfig = {
 // Engine instance is fully typed
 const engine = await SugarboxEngine.init({
   name: "MyGame",
-  variables: { score: 0, level: 1 }, // This will be inferred
-  startPassage: { name: "start", passage: "Welcome!" },
+  startPassage: { name: "intro", passage: "Welcome!" },
   otherPassages: [],
+  variables: { score: 0 },
   config
 });
 
@@ -862,20 +870,30 @@ For custom classes, implement the required interfaces:
 ```typescript
 import type {
   SugarBoxCompatibleClassInstance,
-  SugarBoxCompatibleClassConstructor
+  SugarBoxCompatibleClassConstructorCheck
 } from "sugarbox";
 
-class Player implements SugarBoxCompatibleClassInstance<PlayerData> {
-  static readonly classId = "Player";
+interface SerializedPlayer {
+  name: string;
+  level: number;
+}
 
-  toJSON(): PlayerData {
+class Player implements SugarBoxCompatibleClassInstance<SerializedPlayer> {
+  static readonly classId = "Player";
+  name: string = "Hero";
+  level: number = 1;
+  
+  toJSON(): SerializedPlayer {
     return { name: this.name, level: this.level };
   }
-
-  static fromJSON(data: PlayerData): Player {
+  
+  static fromJSON(data: SerializedPlayer): Player {
     const player = new Player();
     Object.assign(player, data);
     return player;
   }
 }
+
+// Type check for ensuring proper implementation
+type PlayerCheck = SugarBoxCompatibleClassConstructorCheck<SerializedPlayer, typeof Player>;
 ```
