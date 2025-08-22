@@ -53,7 +53,7 @@ See below for more on initialization options and configuration.
 
 A passage can be anything from a string like markdown or html syntax, to objects like JSX components; just be consistent and pick a format. The only data the engine requires are the passage's id / name (which must be unique across all passages that will be added) and the data for the actual passage. Note that, the engine does not handle any rendering so it's up to you to decide how the data should be rendered.
 
-Passages can be passed to the engine during initialization via `startPassage` and `otherPassages` properties in the parameter object. The former denotes the initial passage to start on, while the latter takes an array of any other passages; it's advised to pass all critically needed passages here. Other passages can still be added via the engine's method, `addPassages()` which can take an unlimited amount of parameters.
+Passages can be passed to the engine during initialization via `startPassage` and `otherPassages` properties in the parameter object. The former denotes the initial passage to start on, while the latter takes an array of any other passages; it's advised to pass all critically needed passages here. Other passages can still be added via the engine's method, `addPassages()` which takes an array of passage objects.
 
 The current passage and it's id / name can be obtained via the getters, `passage` and `passageId`.
 
@@ -342,7 +342,7 @@ engine.registerClasses(Inventory);
 Example:
 ```typescript
 class Player {
-  // ... implement __toJSON, static __fromJSON, static __classId ...
+  // ... implement toJSON, static fromJSON, static classId ...
 }
 engine.registerClasses(Player);
 ```
@@ -530,6 +530,35 @@ Save slots are numbered locations where the game state can be stored. A maximum 
     }
     ```
 
+* `async deleteSaveSlot(saveSlot?: number)`: Deletes the save data for a specific slot. If no slot is provided, it deletes the autosave slot.
+
+    ```typescript
+    // Delete save slot 1
+    await engine.deleteSaveSlot(1);
+
+    // Delete autosave slot
+    await engine.deleteSaveSlot();
+    ```
+
+* `async deleteAllSaveSlots()`: Deletes all save slots including the autosave slot.
+
+    ```typescript
+    // Delete all saves
+    await engine.deleteAllSaveSlots();
+    ```
+
+* `loadSaveFromData(save)`: Loads a save from a save data object (typically obtained from `getSaves()`). This is a synchronous method that directly loads the save without persistence operations.
+
+    ```typescript
+    // Load a specific save from the saves list
+    for await (const saveInfo of engine.getSaves()) {
+        if (saveInfo.type === "normal" && saveInfo.slot === 1) {
+            engine.loadSaveFromData(saveInfo.data);
+            break;
+        }
+    }
+    ```
+
 ### Exporting and Importing
 
 > **Note:** Exported save strings are compressed by default if `compressSave` is enabled. The engine will auto-detect and decompress imported data.
@@ -595,7 +624,7 @@ engine.on(":passageChange", (e) => {
 
 ## API Reference
 
-Here’s a quick overview of the main methods and properties:
+Here's a quick overview of the main methods and properties:
 
 | Method / Getter         | Description |
 |------------------------ |------------|
@@ -615,7 +644,10 @@ Here’s a quick overview of the main methods and properties:
 | `registerMigrators(...m)` | Register save migration handlers |
 | `saveToSaveSlot(slot?)` | Save to a slot (async) |
 | `loadFromSaveSlot(slot?)` | Load from a slot (async) |
+| `deleteSaveSlot(slot?)` | Delete a save slot (async) |
+| `deleteAllSaveSlots()`  | Delete all save slots (async) |
 | `loadRecentSave()`      | Load the most recent save (async) |
+| `loadSaveFromData(save)` | Load save from save data object |
 | `getSaves()`            | Async generator for all saves |
 | `saveToExport()`        | Export save as string (async) |
 | `loadFromExport(str)`   | Load save from string (async) |
@@ -796,7 +828,10 @@ The library exports several useful types for TypeScript users:
 ```typescript
 import {
   SugarboxEngine,
-  type SugarBoxConfig
+  type SugarBoxConfig,
+  type SugarBoxCompatibleClassInstance,
+  type SugarBoxCompatibleClassConstructor,
+  type SugarBoxCompatibleClassConstructorCheck
 } from "sugarbox";
 
 // Main configuration type
@@ -831,13 +866,13 @@ import type {
 } from "sugarbox";
 
 class Player implements SugarBoxCompatibleClassInstance<PlayerData> {
-  static __classId = "Player";
+  static readonly classId = "Player";
 
-  __toJSON(): PlayerData {
+  toJSON(): PlayerData {
     return { name: this.name, level: this.level };
   }
 
-  static __fromJSON(data: PlayerData): Player {
+  static fromJSON(data: PlayerData): Player {
     const player = new Player();
     Object.assign(player, data);
     return player;
