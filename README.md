@@ -644,6 +644,7 @@ Here's a quick overview of the main methods and properties:
 | `addPassage(passageId, passageData)` | Add a single passage |
 | `addPassages(passages)` | Add multiple passages |
 | `navigateTo(id)`        | Move to a passage |
+| `reset()`               | Reset engine to initial state, clearing history and restoring all variables |
 | `on(event, fn)`         | Listen for an event |
 | `off(event, fn)`        | Remove event listener |
 | `registerClasses(...c)` | Register custom classes for serialization |
