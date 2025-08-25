@@ -53,7 +53,7 @@ const defaultConfig = {
 
 	saveVersion: `0.0.1`,
 
-	stateChangeEventOptimization: "accuracy",
+	eventOptimization: "accuracy",
 } as const satisfies SugarBoxConfig;
 
 const MINIMUM_SAVE_SLOT_INDEX = 0;
@@ -175,8 +175,7 @@ class SugarboxEngine<
 	 */
 	#index: number;
 
-	readonly #config: SugarBoxConfig<TVariables> &
-		Required<Pick<SugarBoxConfig<TVariables>, "stateChangeEventOptimization">>;
+	readonly #config: SugarBoxConfig<TVariables>;
 
 	/** Indexed by the passage id.
 	 *
@@ -397,7 +396,7 @@ class SugarboxEngine<
 
 		// Smart optimization: only clone when accuracy mode is enabled
 		const shouldCloneOldState =
-			self.#config.stateChangeEventOptimization !== "performance";
+			self.#config.eventOptimization !== "performance";
 
 		const oldState = shouldCloneOldState
 			? clone(self.#getStateAtIndex(this.#index))
@@ -1110,7 +1109,7 @@ class SugarboxEngine<
 
 		// Use same optimization strategy for index navigation
 		const shouldCloneOldState =
-			this.#config.stateChangeEventOptimization !== "performance";
+			this.#config.eventOptimization !== "performance";
 
 		const oldState = shouldCloneOldState
 			? clone(this.#getStateAtIndex(this.#index))

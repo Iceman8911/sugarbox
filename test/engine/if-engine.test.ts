@@ -1614,14 +1614,14 @@ describe("State Change Events", () => {
 		listener();
 	});
 
-	test("should respect stateChangeEventOptimization performance mode", async () => {
+	test("should respect eventOptimization performance mode", async () => {
 		// Create a new engine with performance optimization
 		const performanceEngine = await SugarboxEngine.init({
 			name: "PerformanceTest",
 			startPassage: { name: "Start", passage: "Start passage" },
 			variables: { counter: 0, data: { value: 1 } },
 			config: {
-				stateChangeEventOptimization: "performance",
+				eventOptimization: "performance",
 			},
 			otherPassages: [],
 			achievements: {},
@@ -1661,7 +1661,7 @@ describe("State Change Events", () => {
 			name: "PerfTest2",
 			startPassage: { name: "Start", passage: "Start" },
 			variables: { test: { value: 1 }, counter: 0 },
-			config: { stateChangeEventOptimization: "performance" },
+			config: { eventOptimization: "performance" },
 			otherPassages: [],
 			achievements: {},
 		});

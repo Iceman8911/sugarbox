@@ -184,7 +184,7 @@ The `config` object lets you control engine behavior. All options are optional; 
   *Default: random*
 - `regenSeed` ("passage" | "eachCall" | false): When to regenerate the PRNG seed.
   *Default: "passage"*
-- `stateChangeEventOptimization` ("accuracy" | "performance"): Controls state change event performance vs accuracy trade-offs.
+- `eventOptimization` ("accuracy" | "performance"): Controls state change event performance vs accuracy trade-offs.
   *Default: "accuracy"*
 - `cache` (adapter): Optional cache adapter for state snapshots.
 - `persistence` (adapter): Optional persistence adapter for saving/loading.
@@ -200,7 +200,7 @@ config: {
   autoSave: "state",
   loadOnStart: false,
   initialSeed: 12345,
-  stateChangeEventOptimization: "performance",
+  eventOptimization: "performance",
   regenSeed: "eachCall",
   cache: myCacheAdapter,
   persistence: myPersistenceAdapter
@@ -646,11 +646,11 @@ engine.on(":stateChange", (e) => {
 
 ### State Change Event Optimization
 
-The `:stateChange` event system is designed to be efficient, but with large state objects or high-frequency updates, you may want to optimize performance using the `stateChangeEventOptimization` configuration.
+The `:stateChange` event system is designed to be efficient, but with large state objects or high-frequency updates, you may want to optimize performance using the `eventOptimization` configuration.
 
 #### When to Use Performance Mode
 
-Consider using `stateChangeEventOptimization: "performance"` when:
+Consider using `eventOptimization: "performance"` when:
 
 - Your state objects are large
 - You have high-frequency state changes
@@ -659,7 +659,7 @@ Consider using `stateChangeEventOptimization: "performance"` when:
 
 #### When to Use Accuracy Mode (Default)
 
-Use `stateChangeEventOptimization: "accuracy"` when:
+Use `eventOptimization: "accuracy"` when:
 
 - You need guaranteed separation between `oldState` and `newState` objects
 - Your application logic depends on precise event data
@@ -673,7 +673,7 @@ Use `stateChangeEventOptimization: "accuracy"` when:
 const engine = await SugarboxEngine.init({
   // ...other options
   config: {
-    stateChangeEventOptimization: "performance",
+    eventOptimization: "performance",
     maxStateCount: 50, // Reduce memory usage
     cache: yourCacheAdapter, // Enable caching
   }
@@ -683,7 +683,7 @@ const engine = await SugarboxEngine.init({
 const engine = await SugarboxEngine.init({
   // ...other options
   config: {
-    stateChangeEventOptimization: "accuracy", // Default
+    eventOptimization: "accuracy", // Default
     // Other settings as needed
   }
 });
