@@ -448,8 +448,6 @@ class SugarboxEngine<
 		self.#stateCache?.delete(self.#index);
 	}
 
-	// TODO: resetVars()
-
 	/** Returns the id to the appropriate passage for the current state */
 	get passageId(): string {
 		return this.#varsWithMetadata.__id;
