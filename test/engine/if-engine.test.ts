@@ -214,6 +214,148 @@ describe("State Variables and History", () => {
 	});
 });
 
+describe("Engine Reset", () => {
+	test("reset should restore the engine to its initial state", () => {
+		// Modify the state
+		engine.setVars((state) => {
+			state.player.name = "Changed Name";
+			state.player.level = 99;
+			state.player.inventory.gold = 9999;
+			state.others.stage = 100;
+		});
+
+		// Navigate to different passages
+		engine.navigateTo(SAMPLE_PASSAGES[0].name);
+		engine.navigateTo(SAMPLE_PASSAGES[1].name);
+
+		// Verify state was changed
+		expect(engine.vars.player.name).toBe("Changed Name");
+		expect(engine.vars.player.level).toBe(99);
+		expect(engine.vars.others.stage).toBe(100);
+		expect(engine.index).toBe(2);
+
+		// Reset the engine
+		engine.reset();
+
+		// Verify state is back to initial values
+		expect(engine.vars.player.name).toBe("Dave");
+		expect(engine.vars.player.level).toBe(6);
+		expect(engine.vars.player.inventory.gold).toBe(123);
+		expect(engine.vars.others.stage).toBe(3);
+		expect(engine.index).toBe(0);
+		expect(engine.passageId).toBe("Start");
+	});
+
+	test("reset should clear navigation history", () => {
+		// Navigate through multiple passages
+		engine.navigateTo(SAMPLE_PASSAGES[0].name);
+		engine.navigateTo(SAMPLE_PASSAGES[1].name);
+		engine.navigateTo(SAMPLE_PASSAGES[2].name);
+
+		// Verify we can navigate backward
+		expect(engine.index).toBe(3);
+		engine.backward(1);
+		expect(engine.index).toBe(2);
+
+		// Reset the engine
+		engine.reset();
+
+		// Verify we're back at the start and can't navigate backward
+		expect(engine.index).toBe(0);
+		engine.backward(1);
+		expect(engine.index).toBe(0); // Should stay at 0 since there's no history
+	});
+
+	test("reset should preserve custom class instances", () => {
+		// Verify initial player is an instance of Player class
+		expect(engine.vars.player.favouriteItem()).toBe("Black Sword");
+
+		// Modify the player
+		engine.setVars((state) => {
+			state.player.inventory.items = ["New Sword"];
+		});
+
+		expect(engine.vars.player.favouriteItem()).toBe("New Sword");
+
+		// Reset the engine
+		engine.reset();
+
+		// Verify the player is still a proper Player instance with methods
+		expect(engine.vars.player.favouriteItem()).toBe("Black Sword");
+		expect(typeof engine.vars.player.favouriteItem).toBe("function");
+	});
+
+	test("reset should work correctly after state modifications", () => {
+		// Make various state changes
+		engine.setVars((state) => {
+			state.player.age = 50;
+			state.player.class = "Wizard";
+			state.player.inventory.gems = 999;
+			state.others.hoursPlayed = 100.5;
+		});
+
+		engine.navigateTo(SAMPLE_PASSAGES[0].name);
+
+		// Add more state changes
+		engine.setVars((state) => {
+			state.player.location = "Castle";
+			state.others.stage = 999;
+		});
+
+		// Reset
+		engine.reset();
+
+		// Verify all values are back to initial state
+		expect(engine.vars.player.age).toBe(21);
+		expect(engine.vars.player.class).toBe("Paladin");
+		expect(engine.vars.player.location).toBe("Tavern");
+		expect(engine.vars.player.inventory.gems).toBe(12);
+		expect(engine.vars.others.hoursPlayed).toBe(1.5);
+		expect(engine.vars.others.stage).toBe(3);
+	});
+
+	test("reset should work correctly with array modifications", () => {
+		// Modify inventory items
+		engine.setVars((state) => {
+			state.player.inventory.items.push("Magic Potion");
+			state.player.inventory.items.push("Health Elixir");
+		});
+
+		expect(engine.vars.player.inventory.items).toHaveLength(5);
+		expect(engine.vars.player.inventory.items).toContain("Magic Potion");
+
+		// Reset
+		engine.reset();
+
+		// Verify array is back to initial state
+		expect(engine.vars.player.inventory.items).toHaveLength(3);
+		expect(engine.vars.player.inventory.items).toEqual([
+			"Black Sword",
+			"Slug Shield",
+			"Old Cloth",
+		]);
+		expect(engine.vars.player.inventory.items).not.toContain("Magic Potion");
+	});
+
+	test("reset should maintain deterministic random state", async () => {
+		// Get initial random value
+		const initialRandom1 = engine.random;
+		const initialRandom2 = engine.random;
+
+		// Navigate and get more random values
+		engine.navigateTo(SAMPLE_PASSAGES[0].name);
+		engine.random;
+		engine.random;
+
+		// Reset
+		engine.reset();
+
+		// Verify random sequence starts over
+		expect(engine.random).toBe(initialRandom1);
+		expect(engine.random).toBe(initialRandom2);
+	});
+});
+
 describe("Saving and Loading", () => {
 	test.failing(
 		"loading an empty or invalid save slot should throw",
@@ -661,7 +803,7 @@ describe("Advanced Saving and Loading", () => {
 						migrater: (data: Version_0_1_0_Variables) => {
 							return {
 								prop1: data.prop1.toString(),
-								prop2: parseInt(data.prop2),
+								prop2: Number(data.prop2),
 								prop3: { nestedprop: true },
 							} as Version_0_2_0_Variables;
 						},

@@ -614,6 +614,16 @@ class SugarboxEngine<
 		return newSnapshot;
 	}
 
+	/** Clears all snapshot data and reverts to the initial state.
+	 *
+	 * Use this if you want the engine to essentially, start "afresh"
+	 */
+	reset(): void {
+		this.#rewriteState(this.#initialState);
+
+		this.#setIndex(0);
+	}
+
 	/** Subscribe to an event.
 	 *
 	 * @returns a function that can be used to unsubscribe from the event.
