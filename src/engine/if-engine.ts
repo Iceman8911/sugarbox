@@ -392,7 +392,7 @@ class SugarboxEngine<
 
 		const snapshot = self.#getSnapshotAtIndex(self.#index);
 
-		const oldState = self.#getStateAtIndex(this.#index);
+		const oldState = clone(self.#getStateAtIndex(this.#index));
 
 		type SnapshotProp = keyof typeof snapshot | symbol;
 
@@ -428,15 +428,15 @@ class SugarboxEngine<
 			});
 		}
 
+		// Clear the cache entry for this since it has been changed
+		self.#stateCache?.delete(self.#index);
+
 		const newState = self.#getStateAtIndex(self.#index);
 
 		self.#emitCustomEvent(":stateChange", {
 			newState,
 			oldState,
 		});
-
-		// Clear the cache entry for this since it has been changed
-		self.#stateCache?.delete(self.#index);
 	}
 
 	/** Returns the id to the appropriate passage for the current state */
@@ -1099,7 +1099,7 @@ class SugarboxEngine<
 
 		const oldPassage = this.passage;
 
-		const oldState = this.#getStateAtIndex(this.#index);
+		const oldState = clone(this.#getStateAtIndex(this.#index));
 
 		this.#index = val;
 
