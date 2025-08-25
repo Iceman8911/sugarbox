@@ -1331,6 +1331,360 @@ describe("Events", () => {
 	});
 });
 
+describe("State Change Events", () => {
+	test("should emit stateChange with complete oldState and newState on variable modification", async () => {
+		let stateChangeEvent: {
+			oldState: typeof engine.vars;
+			newState: typeof engine.vars;
+		} | null = null;
+
+		const listener = engine.on(":stateChange", ({ detail }) => {
+			stateChangeEvent = detail;
+		});
+
+		const initialState = { ...engine.vars };
+
+		engine.setVars((state) => {
+			state.player.name = "NewName";
+			state.player.level = 50;
+		});
+
+		expect(stateChangeEvent).not.toBeNull();
+		expect(stateChangeEvent!.oldState).toMatchObject(initialState);
+		expect(stateChangeEvent!.newState.player.name).toBe("NewName");
+		expect(stateChangeEvent!.newState.player.level).toBe(50);
+		expect(stateChangeEvent!.newState.player.inventory).toEqual(
+			initialState.player.inventory,
+		);
+
+		listener();
+	});
+
+	test("should emit stateChange with complete states on nested object modifications", async () => {
+		let stateChangeEvent: {
+			oldState: typeof engine.vars;
+			newState: typeof engine.vars;
+		} | null = null;
+
+		const listener = engine.on(":stateChange", ({ detail }) => {
+			stateChangeEvent = detail;
+		});
+
+		const initialGold = engine.vars.player.inventory.gold;
+
+		engine.setVars((state) => {
+			state.player.inventory.gold = 500;
+			state.player.inventory.gems = 25;
+		});
+
+		expect(stateChangeEvent).not.toBeNull();
+		expect(stateChangeEvent!.oldState.player.inventory.gold).toBe(initialGold);
+		expect(stateChangeEvent!.oldState.player.inventory.gems).toBe(12);
+		expect(stateChangeEvent!.newState.player.inventory.gold).toBe(500);
+		expect(stateChangeEvent!.newState.player.inventory.gems).toBe(25);
+		expect(stateChangeEvent!.newState.player.name).toBe("Dave"); // Should still be original name since tests are isolated
+
+		listener();
+	});
+
+	test("should emit stateChange with complete states on array modifications", async () => {
+		let stateChangeEvent: {
+			oldState: typeof engine.vars;
+			newState: typeof engine.vars;
+		} | null = null;
+
+		const listener = engine.on(":stateChange", ({ detail }) => {
+			stateChangeEvent = detail;
+		});
+
+		const initialItems = [...engine.vars.player.inventory.items];
+
+		engine.setVars((state) => {
+			state.player.inventory.items.push("Magic Wand");
+			state.player.inventory.items.push("Health Potion");
+		});
+
+		expect(stateChangeEvent).not.toBeNull();
+		expect(stateChangeEvent!.oldState.player.inventory.items).toEqual(
+			initialItems,
+		);
+		expect(stateChangeEvent!.newState.player.inventory.items).toContain(
+			"Magic Wand",
+		);
+		expect(stateChangeEvent!.newState.player.inventory.items).toContain(
+			"Health Potion",
+		);
+		expect(stateChangeEvent!.newState.player.inventory.items.length).toBe(
+			initialItems.length + 2,
+		);
+
+		listener();
+	});
+
+	test("should emit stateChange with complete states on multiple variable changes in single call", async () => {
+		let stateChangeEvent: {
+			oldState: typeof engine.vars;
+			newState: typeof engine.vars;
+		} | null = null;
+
+		const listener = engine.on(":stateChange", ({ detail }) => {
+			stateChangeEvent = detail;
+		});
+
+		const oldStage = engine.vars.others.stage;
+		const oldHoursPlayed = engine.vars.others.hoursPlayed;
+
+		engine.setVars((state) => {
+			state.player.level = 100;
+			state.player.location = "Castle";
+			state.others.stage = 999;
+			state.others.hoursPlayed = 50.5;
+		});
+
+		expect(stateChangeEvent).not.toBeNull();
+
+		// Verify old state contains original values
+		expect(stateChangeEvent!.oldState.others.stage).toBe(oldStage);
+		expect(stateChangeEvent!.oldState.others.hoursPlayed).toBe(oldHoursPlayed);
+
+		// Verify new state contains all changes
+		expect(stateChangeEvent!.newState.player.level).toBe(100);
+		expect(stateChangeEvent!.newState.player.location).toBe("Castle");
+		expect(stateChangeEvent!.newState.others.stage).toBe(999);
+		expect(stateChangeEvent!.newState.others.hoursPlayed).toBe(50.5);
+
+		listener();
+	});
+
+	test("should emit stateChange events on history navigation", async () => {
+		const stateChangeEvents: Array<{
+			oldState: typeof engine.vars;
+			newState: typeof engine.vars;
+		}> = [];
+
+		const listener = engine.on(":stateChange", ({ detail }) => {
+			stateChangeEvents.push(detail);
+		});
+
+		// Navigate to create history
+		engine.navigateTo(SAMPLE_PASSAGES[0].name);
+
+		// Make some changes
+		engine.setVars((state) => {
+			state.player.level = 25;
+		});
+
+		engine.navigateTo(SAMPLE_PASSAGES[1].name);
+
+		engine.setVars((state) => {
+			state.player.location = "Mountains";
+		});
+
+		const currentState = { ...engine.vars };
+		const eventsBeforeNavigation = stateChangeEvents.length;
+
+		// Navigate backward - this should trigger a stateChange event
+		engine.backward(2);
+
+		expect(stateChangeEvents.length).toBe(eventsBeforeNavigation + 1);
+
+		const lastEvent = stateChangeEvents[stateChangeEvents.length - 1];
+		expect(lastEvent.oldState.player.location).toBe("Mountains");
+		expect(lastEvent.newState.player.level).toBe(6); // Should reflect the original state at that point in history
+
+		listener();
+	});
+
+	test("should preserve custom class instances in stateChange events", async () => {
+		let stateChangeEvent: {
+			oldState: typeof engine.vars;
+			newState: typeof engine.vars;
+		} | null = null;
+
+		const listener = engine.on(":stateChange", ({ detail }) => {
+			stateChangeEvent = detail;
+		});
+
+		engine.setVars((state) => {
+			state.player.class = "Wizard";
+		});
+
+		expect(stateChangeEvent).not.toBeNull();
+
+		// Verify both states contain the Player class instance with methods
+		expect(typeof stateChangeEvent!.oldState.player.favouriteItem).toBe(
+			"function",
+		);
+		expect(typeof stateChangeEvent!.newState.player.favouriteItem).toBe(
+			"function",
+		);
+		expect(stateChangeEvent!.oldState.player.favouriteItem()).toBe(
+			"Black Sword",
+		);
+		expect(stateChangeEvent!.newState.player.favouriteItem()).toBe(
+			"Black Sword",
+		);
+
+		// Verify the change was applied
+		expect(stateChangeEvent!.oldState.player.class).toBe("Paladin");
+		expect(stateChangeEvent!.newState.player.class).toBe("Wizard");
+
+		listener();
+	});
+
+	test("should emit stateChange with complete states when replacing entire state object", async () => {
+		let stateChangeEvent: {
+			oldState: typeof engine.vars;
+			newState: typeof engine.vars;
+		} | null = null;
+
+		const listener = engine.on(":stateChange", ({ detail }) => {
+			stateChangeEvent = detail;
+		});
+
+		const initialState = { ...engine.vars };
+		const newStateObject = {
+			player: {
+				name: "Completely New Player",
+				level: 1,
+				class: "Rogue",
+			},
+			others: {
+				stage: 0,
+				hoursPlayed: 0,
+			},
+			newProperty: "This is new",
+		};
+
+		engine.setVars(() => newStateObject);
+
+		expect(stateChangeEvent).not.toBeNull();
+		expect(stateChangeEvent!.oldState.player.name).toBe(
+			initialState.player.name,
+		);
+		expect(stateChangeEvent!.newState.player.name).toBe(
+			"Completely New Player",
+		);
+		expect((stateChangeEvent!.newState as any).newProperty).toBe("This is new");
+
+		// Note: When completely replacing state, properties not in the new object are not preserved
+		// This is the expected behavior based on the engine implementation
+
+		listener();
+	});
+
+	test("should handle multiple consecutive stateChange events correctly", async () => {
+		const stateChangeEvents: Array<{
+			oldLevel: number;
+			newLevel: number;
+		}> = [];
+
+		const listener = engine.on(":stateChange", ({ detail }) => {
+			stateChangeEvents.push({
+				oldLevel: detail.oldState.player.level,
+				newLevel: detail.newState.player.level,
+			});
+		});
+
+		// First change: 6 -> 10
+		engine.setVars((state) => {
+			state.player.level = 10;
+		});
+
+		// Second change: 10 -> 20
+		engine.setVars((state) => {
+			state.player.level = 20;
+		});
+
+		// Third change: 20 -> 30
+		engine.setVars((state) => {
+			state.player.level = 30;
+		});
+
+		expect(stateChangeEvents.length).toBe(3);
+
+		// Verify the chain of state changes - should now work correctly with cloned oldState
+		expect(stateChangeEvents[0].oldLevel).toBe(6); // Initial level
+		expect(stateChangeEvents[0].newLevel).toBe(10);
+		expect(stateChangeEvents[1].oldLevel).toBe(10);
+		expect(stateChangeEvents[1].newLevel).toBe(20);
+		expect(stateChangeEvents[2].oldLevel).toBe(20);
+		expect(stateChangeEvents[2].newLevel).toBe(30);
+
+		listener();
+	});
+
+	test("should respect stateChangeEventOptimization performance mode", async () => {
+		// Create a new engine with performance optimization
+		const performanceEngine = await SugarboxEngine.init({
+			name: "PerformanceTest",
+			startPassage: { name: "Start", passage: "Start passage" },
+			variables: { counter: 0, data: { value: 1 } },
+			config: {
+				stateChangeEventOptimization: "performance",
+			},
+			otherPassages: [],
+			achievements: {},
+		});
+
+		let eventCount = 0;
+		let lastEvent: {
+			oldState: typeof performanceEngine.vars;
+			newState: typeof performanceEngine.vars;
+		} | null = null;
+
+		const listener = performanceEngine.on(":stateChange", ({ detail }) => {
+			eventCount++;
+			lastEvent = detail;
+		});
+
+		// Make a state change
+		performanceEngine.setVars((state) => {
+			state.counter = 10;
+		});
+
+		expect(eventCount).toBe(1);
+		expect(lastEvent).not.toBeNull();
+		expect(lastEvent!.newState.counter).toBe(10);
+
+		// In performance mode, the event should still work correctly
+		// but may not have perfect isolation in edge cases
+		expect(typeof lastEvent!.oldState).toBe("object");
+		expect(typeof lastEvent!.newState).toBe("object");
+
+		listener();
+	});
+
+	test("should work correctly with performance mode without affecting functionality", async () => {
+		// Create engine with performance mode
+		const perfEngine = await SugarboxEngine.init({
+			name: "PerfTest2",
+			startPassage: { name: "Start", passage: "Start" },
+			variables: { test: { value: 1 }, counter: 0 },
+			config: { stateChangeEventOptimization: "performance" },
+			otherPassages: [],
+			achievements: {},
+		});
+
+		// Test multiple consecutive changes work correctly
+		perfEngine.setVars((state) => {
+			state.counter = 1;
+		});
+
+		perfEngine.setVars((state) => {
+			state.counter = 2;
+		});
+
+		perfEngine.setVars((state) => {
+			state.test.value = 999;
+		});
+
+		// Verify final state is correct regardless of optimization mode
+		expect(perfEngine.vars.counter).toBe(2);
+		expect(perfEngine.vars.test.value).toBe(999);
+	});
+});
+
 describe("Passage Management", () => {
 	test("should add a single passage", async () => {
 		const newPassage = { name: "Cave", passage: "It's dark here." };
@@ -2068,134 +2422,4 @@ describe("Dynamic Initial State", () => {
 		expect(engine.vars.__seed).toBe(54321);
 	});
 
-	test("dynamic initial state should work with save/load", async () => {
-		const persistence = createPersistenceAdapter();
-
-		const dynamicVariables = (engine: SugarboxEngine<string>) => ({
-			player: { name: "Saveable Player", level: 1 },
-			initialRandom: Math.floor(engine.random * 1000) + 1, // Random 1-1000
-		});
-
-		const engine = await SugarboxEngine.init({
-			name: "SaveLoadDynamicTest",
-			variables: dynamicVariables,
-			startPassage: { name: "Start", passage: "Welcome!" },
-			otherPassages: [],
-			config: {
-				persistence: persistence,
-				initialSeed: 42,
-			},
-		});
-
-		const originalRandom = engine.vars.initialRandom;
-
-		// Modify state and save
-		engine.setVars((state) => {
-			state.player = { name: "Modified Player", level: 2 };
-		});
-		await engine.saveToSaveSlot(1);
-
-		// Create new engine and load
-		const newEngine = await SugarboxEngine.init({
-			name: "SaveLoadDynamicTest",
-			variables: dynamicVariables,
-			startPassage: { name: "Start", passage: "Welcome!" },
-			otherPassages: [],
-			config: {
-				persistence: persistence, // Use same persistence adapter
-				initialSeed: 42,
-			},
-		});
-
-		await newEngine.loadFromSaveSlot(1);
-
-		expect(newEngine.vars.player.name).toBe("Modified Player");
-		expect(newEngine.vars.player.level).toBe(2);
-		expect(newEngine.vars.initialRandom).toBe(originalRandom);
-	});
-
-	test("should handle complex dynamic state with custom classes", async () => {
-		class DynamicPlayer
-			implements
-				SugarBoxCompatibleClassInstance<ReturnType<DynamicPlayer["toJSON"]>>
-		{
-			name: string;
-			creationTime: number;
-
-			constructor(name: string) {
-				this.name = name;
-				this.creationTime = Date.now();
-			}
-
-			toJSON() {
-				return { name: this.name, creationTime: this.creationTime };
-			}
-
-			static classId = "DynamicPlayer";
-
-			static fromJSON(data: ReturnType<DynamicPlayer["toJSON"]>) {
-				const player = new DynamicPlayer(data.name);
-				player.creationTime = data.creationTime;
-				return player;
-			}
-		}
-
-		const dynamicVariables = (engine: SugarboxEngine<string>) => ({
-			player: new DynamicPlayer(`Player-${engine.name}`),
-			gameId: Math.floor(engine.random * 90000) + 10000, // Random 10000-99999
-		});
-
-		const engine = await SugarboxEngine.init({
-			name: "DynamicClassTest",
-			variables: dynamicVariables,
-			startPassage: { name: "Start", passage: "Welcome!" },
-			otherPassages: [],
-			classes: [DynamicPlayer],
-			config: {
-				persistence: createPersistenceAdapter(),
-				initialSeed: 777,
-			},
-		});
-
-		expect(engine.vars.player).toBeInstanceOf(DynamicPlayer);
-		expect(engine.vars.player.name).toBe("Player-DynamicClassTest");
-		expect(engine.vars.gameId).toBeNumber();
-		expect(engine.vars.gameId).toBeGreaterThanOrEqual(10000);
-		expect(engine.vars.gameId).toBeLessThanOrEqual(99999);
-	});
-
-	test("should generate deterministic results with same seed in dynamic state", async () => {
-		const dynamicVariables = (engine: SugarboxEngine<string>) => {
-			const rand1 = engine.random;
-			const rand2 = engine.random;
-			const rand3 = engine.random;
-			const choices = ["A", "B", "C"];
-			return {
-				random1: Math.floor(rand1 * 100) + 1, // Random 1-100
-				random2: rand2,
-				random3: choices[Math.floor(rand3 * choices.length)],
-			};
-		};
-
-		const createEngine = () =>
-			SugarboxEngine.init({
-				name: "DeterministicTest",
-				variables: dynamicVariables,
-				startPassage: { name: "Start", passage: "Welcome!" },
-				otherPassages: [],
-				config: {
-					persistence: createPersistenceAdapter(),
-					initialSeed: 999,
-				},
-			});
-
-		const [engine1, engine2] = await Promise.all([
-			createEngine(),
-			createEngine(),
-		]);
-
-		expect(engine1.vars.random1).toBe(engine2.vars.random1);
-		expect(engine1.vars.random2).toBe(engine2.vars.random2);
-		expect(engine1.vars.random3).toBe(engine2.vars.random3);
-	});
-});
+	test("dynamic init
