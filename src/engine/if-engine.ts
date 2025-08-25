@@ -925,7 +925,7 @@ class SugarboxEngine<
 			if (key === this.#getStorageKey()) {
 				yield { type: "autosave", data: saveData };
 			} else {
-				const slotNumber = parseInt(key.match(/slot(\d+)/)?.[1] ?? "-1");
+				const slotNumber = Number(key.match(/slot(\d+)/)?.[1] ?? "-1");
 
 				yield { type: "normal", slot: slotNumber, data: saveData };
 			}
