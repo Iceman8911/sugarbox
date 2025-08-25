@@ -1,3 +1,5 @@
+/** biome-ignore-all lint/style/noNonNullAssertion: <Tiring> */
+
 import "@stardazed/streams-polyfill";
 import { beforeEach, describe, expect, test } from "bun:test";
 import { SugarboxEngine } from "../../src";
@@ -1682,6 +1684,371 @@ describe("State Change Events", () => {
 		// Verify final state is correct regardless of optimization mode
 		expect(perfEngine.vars.counter).toBe(2);
 		expect(perfEngine.vars.test.value).toBe(999);
+	});
+});
+
+describe("Load-Related Events", () => {
+	test("should emit stateChange events when loading from save slot", async () => {
+		// Set up initial state
+		engine.setVars((state) => {
+			state.player.name = "InitialName";
+			state.player.level = 10;
+			state.others.stage = 1;
+		});
+
+		// Navigate to a different passage
+		engine.navigateTo("Forest Path");
+
+		// Save the current state
+		await engine.saveToSaveSlot(1);
+
+		// Change state after saving
+		engine.setVars((state) => {
+			state.player.name = "ChangedName";
+			state.player.level = 20;
+			state.others.stage = 5;
+		});
+
+		// Navigate to another passage
+		engine.navigateTo("Mountain Peak");
+
+		// Set up event listeners
+		let stateChangeEvent: {
+			oldState: typeof engine.vars;
+			newState: typeof engine.vars;
+		} | null = null;
+
+		const listener = engine.on(":stateChange", ({ detail }) => {
+			stateChangeEvent = detail;
+		});
+
+		// Load the save
+		await engine.loadFromSaveSlot(1);
+
+		// Verify stateChange event was emitted with correct data
+		expect(stateChangeEvent).not.toBeNull();
+		expect(stateChangeEvent!.oldState.player.name).toBe("ChangedName");
+		expect(stateChangeEvent!.oldState.player.level).toBe(20);
+		expect(stateChangeEvent!.oldState.others.stage).toBe(5);
+		expect(stateChangeEvent!.newState.player.name).toBe("InitialName");
+		expect(stateChangeEvent!.newState.player.level).toBe(10);
+		expect(stateChangeEvent!.newState.others.stage).toBe(1);
+
+		// Verify the final engine state matches the loaded save
+		expect(engine.vars.player.name).toBe("InitialName");
+		expect(engine.passage).toBe("You walk down a dimly lit path.");
+
+		listener();
+	});
+
+	test("should emit passageChange events when loading from save slot", async () => {
+		// Navigate to a passage and save
+		engine.navigateTo("Mountain Peak");
+		await engine.saveToSaveSlot(2);
+
+		// Navigate to a different passage
+		engine.navigateTo("Forest Path");
+
+		// Set up event listener
+		let passageChangeEvent: {
+			oldPassage: string | null;
+			newPassage: string|null;
+		} | null = null;
+
+		const listener = engine.on(":passageChange", ({ detail }) => {
+			passageChangeEvent = detail?? {newPassage:"", oldPassage:""};
+		});
+
+		// Load the save
+		await engine.loadFromSaveSlot(2);
+
+		// Verify passageChange event was emitted with correct data
+		expect(passageChangeEvent).not.toBeNull();
+		expect(passageChangeEvent!.oldPassage).toBe(
+			"You walk down a dimly lit path.",
+		);
+		expect(passageChangeEvent!.newPassage).toBe(
+			"A cold wind whips around you at the summit.",
+		);
+
+		listener();
+	});
+
+	test("should emit both stateChange and passageChange events when loading saves with performance optimization", async () => {
+		// Create engine with performance optimization
+		const perfEngine = await SugarboxEngine.init({
+			name: "PerfLoadTest",
+			startPassage: { name: "Start", passage: "Start passage" },
+			variables: { counter: 0, data: { value: 1 } },
+			config: {
+				eventOptimization: "performance",
+				persistence: createPersistenceAdapter(),
+			},
+			otherPassages: [{ name: "Test", passage: "Test passage" }],
+			achievements: {},
+		});
+
+		// Set initial state and passage
+		perfEngine.setVars((state) => {
+			state.counter = 100;
+			state.data.value = 999;
+		});
+		perfEngine.navigateTo("Test");
+
+		// Save state
+		await perfEngine.saveToSaveSlot(1);
+
+		// Change state and passage
+		perfEngine.setVars((state) => {
+			state.counter = 0;
+			state.data.value = 1;
+		});
+		perfEngine.navigateTo("Start");
+
+		// Set up event listeners
+		let stateChangeCount = 0;
+		let passageChangeCount = 0;
+		let lastStateEvent: any = null;
+		let lastPassageEvent: any = null;
+
+		const stateListener = perfEngine.on(":stateChange", ({ detail }) => {
+			stateChangeCount++;
+			lastStateEvent = detail;
+		});
+
+		const passageListener = perfEngine.on(":passageChange", ({ detail }) => {
+			passageChangeCount++;
+			lastPassageEvent = detail;
+		});
+
+		// Load the save
+		await perfEngine.loadFromSaveSlot(1);
+
+		// Verify both events were emitted
+		expect(stateChangeCount).toBe(1);
+		expect(passageChangeCount).toBe(1);
+
+		// Verify state change event data
+		expect(lastStateEvent.oldState.counter).toBe(0);
+		expect(lastStateEvent.newState.counter).toBe(100);
+		expect(lastStateEvent.newState.data.value).toBe(999);
+
+		// Verify passage change event data
+		expect(lastPassageEvent.oldPassage).toBe("Start passage");
+		expect(lastPassageEvent.newPassage).toBe("Test passage");
+
+		// Verify final state
+		expect(perfEngine.vars.counter).toBe(100);
+		expect(perfEngine.vars.data.value).toBe(999);
+		expect(perfEngine.passage).toBe("Test passage");
+
+		stateListener();
+		passageListener();
+	});
+
+	test("should emit events when loading autosave", async () => {
+		// Configure engine with autosave on passage change
+		const persistence = createPersistenceAdapter();
+		const autoEngine = await SugarboxEngine.init({
+			name: "AutoLoadTest",
+			startPassage: { name: "Start", passage: "Start passage" },
+			variables: { test: "initial" },
+			config: {
+				autoSave: "passage",
+				persistence,
+			},
+			otherPassages: [{ name: "Auto", passage: "Auto passage" }],
+			achievements: {},
+		});
+
+		// Change state and navigate (will trigger autosave)
+		autoEngine.setVars((state) => {
+			state.test = "autosaved";
+		});
+		autoEngine.navigateTo("Auto");
+
+		// Wait for autosave to complete
+		await new Promise((resolve) => setTimeout(resolve, 10));
+
+		// Verify autosave was created
+		let foundAutosave = false;
+		for await (const save of autoEngine.getSaves()) {
+			if (save.type === "autosave") {
+				foundAutosave = true;
+				expect(save.data.lastPassageId).toBe("Auto");
+				break;
+			}
+		}
+		expect(foundAutosave).toBe(true);
+
+		// Change state again
+		autoEngine.setVars((state) => {
+			state.test = "changed";
+		});
+		autoEngine.navigateTo("Start");
+
+		// Set up event listeners
+		let eventCount = 0;
+		let stateEvent: any = null;
+		let passageEvent: any = null;
+
+		const stateListener = autoEngine.on(":stateChange", ({ detail }) => {
+			eventCount++;
+			stateEvent = detail;
+		});
+
+		const passageListener = autoEngine.on(":passageChange", ({ detail }) => {
+			passageEvent = detail;
+		});
+
+		// Load autosave (no parameter means autosave)
+		await autoEngine.loadFromSaveSlot();
+
+		// Verify events were emitted
+		expect(eventCount).toBe(1);
+		expect(stateEvent).not.toBeNull();
+		expect(passageEvent).not.toBeNull();
+
+		// Verify data correctness
+		expect(stateEvent.oldState.test).toBe("changed");
+		expect(stateEvent.newState.test).toBe("autosaved");
+		expect(passageEvent.oldPassage).toBe("Start passage");
+		expect(passageEvent.newPassage).toBe("Auto passage");
+
+		stateListener();
+		passageListener();
+	});
+
+	test("should handle load events correctly with complex nested state changes", async () => {
+		// Set up complex nested state
+		engine.setVars((state) => {
+			state.player.inventory.items.push("Magic Ring");
+			state.player.inventory.gold = 500;
+			state.others.hoursPlayed = 10.5;
+		});
+		engine.navigateTo("Mountain Peak");
+
+		await engine.saveToSaveSlot(3);
+
+		// Make complex changes
+		engine.setVars((state) => {
+			state.player.inventory.items = ["Basic Sword"];
+			state.player.inventory.gold = 0;
+			state.player.name = "NewPlayer";
+			state.others.hoursPlayed = 0;
+			state.others.stage = 99;
+		});
+		engine.navigateTo("Start");
+
+		// Set up event listener
+		let complexStateEvent: any = null;
+
+		const listener = engine.on(":stateChange", ({ detail }) => {
+			complexStateEvent = detail;
+		});
+
+		// Load the save
+		await engine.loadFromSaveSlot(3);
+
+		// Verify complex nested state restoration
+		expect(complexStateEvent).not.toBeNull();
+		expect(complexStateEvent.oldState.player.name).toBe("NewPlayer");
+		expect(complexStateEvent.oldState.player.inventory.items).toEqual([
+			"Basic Sword",
+		]);
+		expect(complexStateEvent.oldState.player.inventory.gold).toBe(0);
+		expect(complexStateEvent.oldState.others.stage).toBe(99);
+
+		expect(complexStateEvent.newState.player.inventory.items).toContain(
+			"Magic Ring",
+		);
+		expect(complexStateEvent.newState.player.inventory.gold).toBe(500);
+		expect(complexStateEvent.newState.others.hoursPlayed).toBe(10.5);
+
+		// Verify the actual engine state
+		expect(engine.vars.player.inventory.items).toContain("Magic Ring");
+		expect(engine.vars.player.inventory.gold).toBe(500);
+		expect(engine.passage).toBe("A cold wind whips around you at the summit.");
+
+		listener();
+	});
+
+	// Might remove this >~<
+	test("should maintain event consistency with #shouldCloneOldState optimization", async () => {
+		// Test both accuracy and performance modes to ensure the refactored
+		// #shouldCloneOldState getter works correctly
+
+		const testEngines = await Promise.all([
+			SugarboxEngine.init({
+				name: "AccuracyTest",
+				startPassage: { name: "Start", passage: "Start" },
+				variables: { shared: { value: 1 } },
+				config: {
+					eventOptimization: "accuracy",
+					persistence: createPersistenceAdapter(),
+				},
+				otherPassages: [],
+				achievements: {},
+			}),
+			SugarboxEngine.init({
+				name: "PerformanceTest",
+				startPassage: { name: "Start", passage: "Start" },
+				variables: { shared: { value: 1 } },
+				config: {
+					eventOptimization: "performance",
+					persistence: createPersistenceAdapter(),
+				},
+				otherPassages: [],
+				achievements: {},
+			}),
+		]);
+
+		for (const [index, testEngine] of testEngines.entries()) {
+			const mode = index === 0 ? "accuracy" : "performance";
+
+			// Set up state
+			testEngine.setVars((state) => {
+				state.shared.value = 100;
+			});
+
+			await testEngine.saveToSaveSlot(1);
+
+			// Change state
+			testEngine.setVars((state) => {
+				state.shared.value = 200;
+			});
+
+			// Capture events
+			let stateEvent: any = null;
+			const listener = testEngine.on(":stateChange", ({ detail }) => {
+				stateEvent = detail;
+			});
+
+			// Load save
+			await testEngine.loadFromSaveSlot(1);
+
+			// Verify event structure is consistent regardless of optimization mode
+			expect(stateEvent).not.toBeNull();
+			expect(stateEvent.oldState.shared.value).toBe(200);
+			expect(stateEvent.newState.shared.value).toBe(100);
+			expect(typeof stateEvent.oldState).toBe("object");
+			expect(typeof stateEvent.newState).toBe("object");
+
+			// In accuracy mode, states should be properly isolated
+			if (mode === "accuracy") {
+				// Test that modifying the oldState doesn't affect the current engine state
+				const originalEngineValue = testEngine.vars.shared.value;
+				stateEvent.oldState.shared.value = 999;
+
+				// Engine state should not be affected by modifying oldState
+				expect(testEngine.vars.shared.value).toBe(originalEngineValue);
+
+				// But note: in the current implementation, newState may reference the same object
+				// as the engine's current state, so we test oldState isolation specifically
+			}
+
+			listener();
+		}
 	});
 });
 

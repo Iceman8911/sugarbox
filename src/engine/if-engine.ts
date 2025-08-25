@@ -394,13 +394,9 @@ class SugarboxEngine<
 
 		const snapshot = self.#getSnapshotAtIndex(self.#index);
 
-		// Smart optimization: only clone when accuracy mode is enabled
-		const shouldCloneOldState =
-			self.#config.eventOptimization !== "performance";
-
-		const oldState = shouldCloneOldState
-			? clone(self.#getStateAtIndex(this.#index))
-			: self.#getStateAtIndex(this.#index);
+		const oldState = this.#shouldCloneOldState
+			? clone(self.#varsWithMetadata)
+			: self.#varsWithMetadata;
 
 		type SnapshotProp = keyof typeof snapshot | symbol;
 
@@ -800,6 +796,10 @@ class SugarboxEngine<
 			saveVersion,
 		}: SugarBoxSaveData<TVariables> = save;
 
+		const oldPassage = this.passage;
+
+		const oldState = this.#shouldCloneOldState ? clone(this.vars) : this.vars;
+
 		const { saveCompatibilityMode, saveVersion: engineVersion } = this.#config;
 
 		const saveCompatibility = isSaveCompatibleWithEngine(
@@ -901,6 +901,12 @@ class SugarboxEngine<
 
 		// Clear the state cache since the state has changed
 		this.#stateCache?.clear();
+
+		this.#emitCustomEvent(":stateChange", { newState: this.vars, oldState });
+		this.#emitCustomEvent(":passageChange", {
+			newPassage: this.passage,
+			oldPassage,
+		});
 	}
 
 	/** Returns an object containing the data of all present saves */
@@ -1108,13 +1114,9 @@ class SugarboxEngine<
 
 		const oldPassage = this.passage;
 
-		// Use same optimization strategy for index navigation
-		const shouldCloneOldState =
-			this.#config.eventOptimization !== "performance";
-
-		const oldState = shouldCloneOldState
-			? clone(this.#getStateAtIndex(this.#index))
-			: this.#getStateAtIndex(this.#index);
+		const oldState = this.#shouldCloneOldState
+			? clone(this.#varsWithMetadata)
+			: this.#varsWithMetadata;
 
 		this.#index = val;
 
@@ -1413,6 +1415,10 @@ class SugarboxEngine<
 
 	get #currentStatePrng(): PRNG {
 		return this.#getPrngFromSeed(this.#currentStatePrngSeed);
+	}
+
+	get #shouldCloneOldState(): boolean {
+		return this.#config.eventOptimization !== "performance";
 	}
 }
 
