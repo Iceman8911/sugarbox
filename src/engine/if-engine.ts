@@ -73,7 +73,7 @@ type Config<TState extends Record<string, unknown>> = Partial<
 >;
 
 /** Events fired from a `SugarBoxEngine` instance */
-type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
+type SugarBoxEvents<TPassageData, TStateVariables> = {
 	":passageChange": Readonly<{
 		/** The previous passage before the transition */
 		oldPassage: TPassageData | null;
@@ -83,11 +83,11 @@ type SugarBoxEvents<TPassageData, TPartialSnapshot> = {
 	}>;
 
 	":stateChange": Readonly<{
-		/** The previous snapshot of only variables (to be changed) before the change */
-		oldState: TPartialSnapshot;
+		/** The previous state of all variables before the change */
+		oldState: TStateVariables;
 
-		/** A collection of only the changed variables after the change */
-		newState: TPartialSnapshot;
+		/** The current state of all variables after the change */
+		newState: TStateVariables;
 	}>;
 
 	// ":init": null;
@@ -392,7 +392,7 @@ class SugarboxEngine<
 
 		const snapshot = self.#getSnapshotAtIndex(self.#index);
 
-		const currentStateBeforeChange = self.#getStateAtIndex(this.#index);
+		const oldState = self.#getStateAtIndex(this.#index);
 
 		type SnapshotProp = keyof typeof snapshot | symbol;
 
@@ -428,16 +428,7 @@ class SugarboxEngine<
 			});
 		}
 
-		// Get the changes and emit them
-		const newState = self.#getSnapshotAtIndex(self.#index);
-
-		const oldState: SnapshotWithMetadata<TVariables> = {};
-
-		let newStateKey: keyof typeof newState;
-
-		for (newStateKey in newState) {
-			oldState[newStateKey] = currentStateBeforeChange[newStateKey];
-		}
+		const newState = self.#getStateAtIndex(self.#index);
 
 		self.#emitCustomEvent(":stateChange", {
 			newState,
@@ -1108,19 +1099,18 @@ class SugarboxEngine<
 
 		const oldPassage = this.passage;
 
-		const oldSnapshot = this.#getSnapshotAtIndex(this.#index);
+		const oldState = this.#getStateAtIndex(this.#index);
 
 		this.#index = val;
 
-		// Emit the events for passage and state changes
 		this.#emitCustomEvent(":passageChange", {
 			newPassage: this.passage,
 			oldPassage,
 		});
 
 		this.#emitCustomEvent(":stateChange", {
-			newState: this.#getSnapshotAtIndex(this.#index),
-			oldState: oldSnapshot,
+			newState: this.#getStateAtIndex(this.#index),
+			oldState,
 		});
 	}
 
@@ -1274,19 +1264,11 @@ class SugarboxEngine<
 	}
 
 	#createCustomEvent<
-		TEventType extends keyof SugarBoxEvents<
-			TPassageType,
-			SnapshotWithMetadata<TVariables>
-		>,
+		TEventType extends keyof SugarBoxEvents<TPassageType, TVariables>,
 	>(
 		name: TEventType,
-		data: SugarBoxEvents<
-			TPassageType,
-			SnapshotWithMetadata<TVariables>
-		>[TEventType],
-	): CustomEvent<
-		SugarBoxEvents<TPassageType, SnapshotWithMetadata<TVariables>>[TEventType]
-	> {
+		data: SugarBoxEvents<TPassageType, TVariables>[TEventType],
+	): CustomEvent<SugarBoxEvents<TPassageType, TVariables>[TEventType]> {
 		return new CustomEvent(name, { detail: data });
 	}
 
@@ -1295,16 +1277,10 @@ class SugarboxEngine<
 	}
 
 	#emitCustomEvent<
-		TEventType extends keyof SugarBoxEvents<
-			TPassageType,
-			SnapshotWithMetadata<TVariables>
-		>,
+		TEventType extends keyof SugarBoxEvents<TPassageType, TVariables>,
 	>(
 		name: TEventType,
-		data: SugarBoxEvents<
-			TPassageType,
-			SnapshotWithMetadata<TVariables>
-		>[TEventType],
+		data: SugarBoxEvents<TPassageType, TVariables>[TEventType],
 	): boolean {
 		const dispatchResult = this.#dispatchCustomEvent(
 			this.#createCustomEvent(name, data),
