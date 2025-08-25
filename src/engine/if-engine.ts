@@ -931,6 +931,7 @@ class SugarboxEngine<
 		}
 	}
 
+	/** Loads the most recent save */
 	async loadRecentSave(): Promise<void> {
 		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
 			"load",
