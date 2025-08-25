@@ -174,6 +174,34 @@ type SugarBoxConfig<
 
 	/** Optional persistence adapter for saving support */
 	persistence?: SugarBoxPersistenceAdapter;
+
+	/** Optimization strategy for state change events.
+	 *
+	 * This setting controls how the engine handles state snapshots when emitting
+	 * `:stateChange` events, balancing between performance and data accuracy.
+	 *
+	 * **Performance Impact:**
+	 * - `accuracy`: Deep clones the old state before modifications, ensuring complete
+	 *   isolation between `oldState` and `newState` objects. Use when you need
+	 *   guaranteed data integrity but may impact performance with large state objects.
+	 *
+	 * - `performance`: Avoids deep cloning for better performance. In rare edge cases
+	 *   with complex state caching scenarios, `oldState` and `newState` might reference
+	 *   the same object, but provides significant performance benefits for large states.
+	 *
+	 * **Additional Optimizations:**
+	 * - Cache management is optimized to minimize unnecessary operations
+	 * - Event emission uses efficient EventTarget implementation
+	 *
+	 * **Recommendation:**
+	 * - Use `accuracy` (default) for most applications unless performance profiling
+	 *   shows state change events are a bottleneck
+	 * - Use `performance` for applications with very large state objects (>100KB)
+	 *   or high-frequency state changes where event data integrity is less critical
+	 *
+	 * @default "accuracy"
+	 */
+	stateChangeEventOptimization?: "performance" | "accuracy";
 };
 
 type SugarBoxPassage<TPassageType> = {
