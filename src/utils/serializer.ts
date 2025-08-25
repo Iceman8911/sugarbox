@@ -32,6 +32,17 @@ const parse = (str: string): any => transformFromSerialization(JSON.parse(str));
 const transformForSerialization = (
 	obj: unknown,
 ): TransformedDataType | unknown => {
+	const tranformObjPropsForSerialization = (obj: object) => {
+		const result: Record<string, unknown> = {};
+
+		for (const key in obj) {
+			//@ts-expect-error This is not an error
+			result[key] = transformForSerialization(obj[key]);
+		}
+
+		return result;
+	};
+
 	if (obj == null) {
 		return obj;
 	}
@@ -44,9 +55,14 @@ const transformForSerialization = (
 		// Check if this is a custom class instance
 		for (const [classId, ClassConstructor] of classRegistry) {
 			if (obj instanceof ClassConstructor) {
+				const toJSONedObj = obj.toJSON();
+
 				const transformedClass: TransformedCustomClass = {
 					__classId: classId,
-					__data: obj.toJSON(),
+					__data:
+						typeof toJSONedObj === "object" && toJSONedObj
+							? tranformObjPropsForSerialization(toJSONedObj)
+							: toJSONedObj,
 					__type: "customClass",
 				};
 
@@ -99,14 +115,7 @@ const transformForSerialization = (
 		}
 
 		// Handle regular objects
-		const result: Record<string, unknown> = {};
-
-		for (const key in obj) {
-			//@ts-expect-error This is not an error
-			result[key] = transformForSerialization(obj[key]);
-		}
-
-		return result;
+		return tranformObjPropsForSerialization(obj);
 	}
 
 	// Handle BigInt
@@ -142,7 +151,11 @@ const transformFromSerialization = (obj: unknown): unknown => {
 			if (objToTransform.__type === "customClass") {
 				const classConstructor = classRegistry.get(objToTransform.__classId);
 
-				return classConstructor?.fromJSON(objToTransform.__data);
+				// Transform the data before passing to fromJSON to handle nested Maps/Sets
+				const transformedData = transformFromSerialization(
+					objToTransform.__data,
+				);
+				return classConstructor?.fromJSON(transformedData);
 			}
 
 			// Check if this is a serialized Date
