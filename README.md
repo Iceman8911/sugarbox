@@ -184,6 +184,8 @@ The `config` object lets you control engine behavior. All options are optional; 
   *Default: random*
 - `regenSeed` ("passage" | "eachCall" | false): When to regenerate the PRNG seed.
   *Default: "passage"*
+- `stateChangeEventOptimization` ("accuracy" | "performance"): Controls state change event performance vs accuracy trade-offs.
+  *Default: "accuracy"*
 - `cache` (adapter): Optional cache adapter for state snapshots.
 - `persistence` (adapter): Optional persistence adapter for saving/loading.
 
@@ -198,6 +200,7 @@ config: {
   autoSave: "state",
   loadOnStart: false,
   initialSeed: 12345,
+  stateChangeEventOptimization: "performance",
   regenSeed: "eachCall",
   cache: myCacheAdapter,
   persistence: myPersistenceAdapter
@@ -240,7 +243,7 @@ Do note that in the latter case, if the previous state was something similar to:
 
 Top-level properties (e.g `others`) will still retain their values unless explicitly set to `null`
 
-Modifying the state will cause the engine to fire a custom `:stateChange` event that can be listened to via the `on()` method of the engine. This event contains the changed variables, both their previous, and now current values. For example, in the first example under this heading, the event will have `{ name: "Dave" }` and `{ name: "Sheep" }` as it's detail data.
+Modifying the state will cause the engine to fire a custom `:stateChange` event that can be listened to via the `on()` method of the engine. This event contains the complete state before and after the change in `oldState` and `newState` properties respectively. For example, if the previous state was `{ name: "Dave", inventory: { gold: 123 } }` and you change the name to "Sheep", the event detail will contain both the complete previous state and the complete new state `{ name: "Sheep", inventory: { gold: 123 } }`.
 
 ### State History
 
@@ -621,10 +624,68 @@ Sugarbox emits several custom events you can listen to with `on()`:
 - `:loadStart` / `:loadEnd` — Fired before/after a load.
 - `:migrationStart` / `:migrationEnd` — Fired before/after save migration operations.
 
-Example:
+Examples:
 ```typescript
 engine.on(":passageChange", (e) => {
   console.log("Passage changed!", e.detail);
+});
+
+engine.on(":stateChange", (e) => {
+  console.log("State changed!");
+  console.log("Previous state:", e.detail.oldState);
+  console.log("New state:", e.detail.newState);
+
+  // Example: Track specific variable changes
+  if (e.detail.oldState.playerHealth !== e.detail.newState.playerHealth) {
+    console.log(`Health changed from ${e.detail.oldState.playerHealth} to ${e.detail.newState.playerHealth}`);
+  }
+});
+```
+
+## Performance Considerations
+
+### State Change Event Optimization
+
+The `:stateChange` event system is designed to be efficient, but with large state objects or high-frequency updates, you may want to optimize performance using the `stateChangeEventOptimization` configuration.
+
+#### When to Use Performance Mode
+
+Consider using `stateChangeEventOptimization: "performance"` when:
+
+- Your state objects are large
+- You have high-frequency state changes
+- You're experiencing performance issues with state updates
+- Event data integrity is less critical than performance
+
+#### When to Use Accuracy Mode (Default)
+
+Use `stateChangeEventOptimization: "accuracy"` when:
+
+- You need guaranteed separation between `oldState` and `newState` objects
+- Your application logic depends on precise event data
+- Performance is not a primary concern
+- State objects are reasonably sized / small
+
+#### Example Configuration
+
+```typescript
+// For performance-critical applications
+const engine = await SugarboxEngine.init({
+  // ...other options
+  config: {
+    stateChangeEventOptimization: "performance",
+    maxStateCount: 50, // Reduce memory usage
+    cache: yourCacheAdapter, // Enable caching
+  }
+});
+
+// For data-critical applications
+const engine = await SugarboxEngine.init({
+  // ...other options
+  config: {
+    stateChangeEventOptimization: "accuracy", // Default
+    // Other settings as needed
+  }
 });
 ```
 
@@ -883,11 +944,11 @@ class Player implements SugarBoxCompatibleClassInstance<SerializedPlayer> {
   static readonly classId = "Player";
   name: string = "Hero";
   level: number = 1;
-  
+
   toJSON(): SerializedPlayer {
     return { name: this.name, level: this.level };
   }
-  
+
   static fromJSON(data: SerializedPlayer): Player {
     const player = new Player();
     Object.assign(player, data);

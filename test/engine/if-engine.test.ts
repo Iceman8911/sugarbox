@@ -2421,5 +2421,4 @@ describe("Dynamic Initial State", () => {
 		expect(engine.vars.__id).toBe("CorrectStart");
 		expect(engine.vars.__seed).toBe(54321);
 	});
-
-	test("dynamic init
+});
