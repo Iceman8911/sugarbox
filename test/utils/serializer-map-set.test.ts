@@ -461,11 +461,14 @@ describe("Serializer Map and Set Tests", () => {
 
 			const collections = new EdgeCaseCollections();
 			collections.mapWithNulls.set("null_value", null);
-			collections.mapWithNulls.set("undefined_value", undefined); // This will become null after serialization
+
+			//@ts-expect-error This will become null after serialization
+			collections.mapWithNulls.set("undefined_value", undefined);
 			collections.mapWithNulls.set("number_value", 42);
 
 			collections.setWithNulls.add(null);
-			collections.setWithNulls.add(undefined); // This will become null after serialization, causing duplicate
+			//@ts-expect-error This will become null after serialization, causing duplicate
+			collections.setWithNulls.add(undefined);
 			collections.setWithNulls.add("string_value");
 
 			const serialized = serialize(collections);
@@ -602,7 +605,8 @@ describe("Serializer Map and Set Tests", () => {
 			valueSet.mixedValues.add(true);
 			valueSet.mixedValues.add(false);
 			valueSet.mixedValues.add(null);
-			valueSet.mixedValues.add(undefined); // This will become null, creating a duplicate
+			//@ts-expect-error This will become null, creating a duplicate
+			valueSet.mixedValues.add(undefined);
 
 			valueSet.bigIntValues.add(9007199254740991n);
 			valueSet.bigIntValues.add(-9007199254740991n);
