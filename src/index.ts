@@ -3,7 +3,12 @@ import type {
 	SugarBoxCacheAdapter,
 	SugarBoxPersistenceAdapter,
 } from "./types/adapters";
-import type { SugarBoxAnyKey, SugarBoxConfig } from "./types/if-engine";
+import type {
+	SugarBoxAnyKey,
+	SugarBoxConfig,
+	SugarBoxExportData,
+	SugarBoxSaveData,
+} from "./types/if-engine";
 import type {
 	SugarBoxCompatibleClassConstructorCheck,
 	SugarBoxCompatibleClassInstance,
@@ -17,4 +22,6 @@ export {
 	type SugarBoxAnyKey,
 	type SugarBoxPersistenceAdapter,
 	type SugarBoxCacheAdapter,
+	type SugarBoxExportData,
+	type SugarBoxSaveData,
 };
