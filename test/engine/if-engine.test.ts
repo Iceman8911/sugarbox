@@ -356,6 +356,60 @@ describe("Engine Reset", () => {
 		expect(engine.random).toBe(initialRandom1);
 		expect(engine.random).toBe(initialRandom2);
 	});
+
+	test("reset with resetSeed=true should generate new random seed", async () => {
+		// Get initial random values
+		const initialRandom1 = engine.random;
+		const initialRandom2 = engine.random;
+
+		// Reset with new seed
+		engine.reset(true);
+
+		// Get new random values after reset with new seed
+		const newRandom1 = engine.random;
+		const newRandom2 = engine.random;
+
+		// The new sequence should be different from the initial sequence
+		// (extremely unlikely to be the same with a new random seed)
+		expect(newRandom1).not.toBe(initialRandom1);
+		expect(newRandom2).not.toBe(initialRandom2);
+	});
+
+	test("reset with resetSeed=false should maintain deterministic random sequence", async () => {
+		// Get initial random values
+		const initialRandom1 = engine.random;
+		const initialRandom2 = engine.random;
+
+		// Navigate and consume more random values
+		engine.navigateTo(SAMPLE_PASSAGES[0].name);
+		engine.random;
+		engine.random;
+
+		// Reset without changing seed (default behavior)
+		engine.reset(false);
+
+		// Should get the same sequence as initially
+		expect(engine.random).toBe(initialRandom1);
+		expect(engine.random).toBe(initialRandom2);
+	});
+
+	test("reset default behavior should maintain deterministic random sequence", async () => {
+		// Get initial random values
+		const initialRandom1 = engine.random;
+		const initialRandom2 = engine.random;
+
+		// Navigate and consume more random values
+		engine.navigateTo(SAMPLE_PASSAGES[0].name);
+		engine.random;
+		engine.random;
+
+		// Reset without parameters (should default to resetSeed=false)
+		engine.reset();
+
+		// Should get the same sequence as initially
+		expect(engine.random).toBe(initialRandom1);
+		expect(engine.random).toBe(initialRandom2);
+	});
 });
 
 describe("Saving and Loading", () => {

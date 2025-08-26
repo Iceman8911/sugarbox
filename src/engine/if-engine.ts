@@ -243,11 +243,7 @@ class SugarboxEngine<
 		config: Config<TVariables>,
 		otherPassages: SugarBoxPassage<TPassageType>[],
 	) {
-		const {
-			cache,
-			saveSlots,
-			initialSeed = Math.floor(Math.random() * 2 ** 32),
-		} = config;
+		const { cache, saveSlots, initialSeed = getRandomInteger() } = config;
 
 		this.#stateSnapshots = [{}];
 
@@ -630,9 +626,15 @@ class SugarboxEngine<
 	/** Clears all snapshot data and reverts to the initial state.
 	 *
 	 * Use this if you want the engine to essentially, start "afresh"
+	 *
+	 * @param [resetSeed=false] if true, the initial seed is randomised
 	 */
-	reset(): void {
-		this.#rewriteState(this.#initialState);
+	reset(resetSeed = false): void {
+		this.#rewriteState(
+			resetSeed
+				? { ...this.#initialState, __seed: getRandomInteger() }
+				: this.#initialState,
+		);
 
 		this.#setIndex(0);
 	}
@@ -1481,5 +1483,7 @@ const sanitiseError = (possibleError: unknown) =>
 	possibleError instanceof Error
 		? possibleError
 		: new Error(String(possibleError));
+
+const getRandomInteger = () => Math.floor(Math.random() * 2 ** 32);
 
 export { SugarboxEngine };
