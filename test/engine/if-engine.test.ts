@@ -1331,6 +1331,110 @@ describe("Events", () => {
 		loadStartListener();
 		loadEndListener();
 	});
+
+	test("should emit delete events", async () => {
+		// Set up a save to delete
+		await engine.saveToSaveSlot(1);
+
+		// Delete events for numbered slot
+		let deleteStartEvent: { slot: "autosave" | number } | undefined;
+		let deleteEndEvent:
+			| { type: "success"; slot: "autosave" | number }
+			| { type: "error"; slot: "autosave" | number; error: Error }
+			| undefined;
+
+		const deleteStartListener = engine.on(":deleteStart", ({ detail }) => {
+			deleteStartEvent = detail;
+		});
+
+		const deleteEndListener = engine.on(":deleteEnd", ({ detail }) => {
+			deleteEndEvent = detail;
+		});
+
+		await engine.deleteSaveSlot(1);
+
+		expect(deleteStartEvent).toEqual({ slot: 1 });
+		expect(deleteEndEvent).toEqual({ type: "success", slot: 1 });
+
+		deleteStartListener();
+		deleteEndListener();
+
+		// Delete events for autosave
+		await engine.saveToSaveSlot(); // Create autosave
+
+		let autosaveDeleteStartEvent: { slot: "autosave" | number } | undefined;
+		let autosaveDeleteEndEvent:
+			| { type: "success"; slot: "autosave" | number }
+			| { type: "error"; slot: "autosave" | number; error: Error }
+			| undefined;
+
+		const autosaveDeleteStartListener = engine.on(
+			":deleteStart",
+			({ detail }) => {
+				autosaveDeleteStartEvent = detail;
+			},
+		);
+
+		const autosaveDeleteEndListener = engine.on(":deleteEnd", ({ detail }) => {
+			autosaveDeleteEndEvent = detail;
+		});
+
+		await engine.deleteSaveSlot(); // Delete autosave
+
+		expect(autosaveDeleteStartEvent).toEqual({ slot: "autosave" });
+		expect(autosaveDeleteEndEvent).toEqual({
+			type: "success",
+			slot: "autosave",
+		});
+
+		autosaveDeleteStartListener();
+		autosaveDeleteEndListener();
+	});
+
+	test("should emit delete events on error", async () => {
+		// Create engine without persistence to trigger error
+		const engineWithoutPersistence = await SugarboxEngine.init({
+			name: "Test",
+			startPassage: { name: "Start", passage: "This is the start passage" },
+			config: {},
+			otherPassages: [],
+			variables: {},
+			achievements: {} as Record<string, unknown>,
+		});
+
+		let deleteStartEvent: { slot: "autosave" | number } | undefined;
+		let deleteEndEvent:
+			| { type: "success"; slot: "autosave" | number }
+			| { type: "error"; slot: "autosave" | number; error: Error }
+			| undefined;
+
+		const deleteStartListener = engineWithoutPersistence.on(
+			":deleteStart",
+			({ detail }) => {
+				deleteStartEvent = detail;
+			},
+		);
+
+		const deleteEndListener = engineWithoutPersistence.on(
+			":deleteEnd",
+			({ detail }) => {
+				deleteEndEvent = detail;
+			},
+		);
+
+		// Attempt to delete should throw and emit error event
+		await expect(engineWithoutPersistence.deleteSaveSlot(1)).rejects.toThrow();
+
+		expect(deleteStartEvent).toEqual({ slot: 1 });
+		expect(deleteEndEvent?.type).toBe("error");
+		expect(deleteEndEvent?.slot).toBe(1);
+		expect(
+			deleteEndEvent && "error" in deleteEndEvent && deleteEndEvent.error,
+		).toBeInstanceOf(Error);
+
+		deleteStartListener();
+		deleteEndListener();
+	});
 });
 
 describe("State Change Events", () => {
@@ -1752,11 +1856,11 @@ describe("Load-Related Events", () => {
 		// Set up event listener
 		let passageChangeEvent: {
 			oldPassage: string | null;
-			newPassage: string|null;
+			newPassage: string | null;
 		} | null = null;
 
 		const listener = engine.on(":passageChange", ({ detail }) => {
-			passageChangeEvent = detail?? {newPassage:"", oldPassage:""};
+			passageChangeEvent = detail ?? { newPassage: "", oldPassage: "" };
 		});
 
 		// Load the save

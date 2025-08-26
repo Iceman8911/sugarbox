@@ -102,6 +102,12 @@ type SugarBoxEvents<TPassageData, TStateVariables> = {
 
 	":loadEnd": { type: "success" } | { type: "error"; error: Error };
 
+	":deleteStart": { slot: "autosave" | number };
+
+	":deleteEnd":
+		| { type: "success"; slot: "autosave" | number }
+		| { type: "error"; error: Error; slot: "autosave" | number };
+
 	":migrationStart": Readonly<{
 		fromVersion: SugarBoxSemanticVersionString;
 		toVersion: SugarBoxSemanticVersionString;
@@ -759,11 +765,31 @@ class SugarboxEngine<
 	async deleteSaveSlot(saveSlot?: number): Promise<unknown> {
 		const { persistence } = this.#config;
 
-		SugarboxEngine.#assertPersistenceIsAvailable(persistence);
+		const slot = saveSlot ?? "autosave";
 
-		const saveSlotKey = this.#getStorageKey(saveSlot);
+		this.#emitCustomEvent(":deleteStart", { slot });
 
-		return persistence.delete(saveSlotKey);
+		try {
+			SugarboxEngine.#assertPersistenceIsAvailable(persistence);
+
+			const saveSlotKey = this.#getStorageKey(saveSlot);
+
+			const deleted = await persistence.delete(saveSlotKey);
+
+			this.#emitCustomEvent(":deleteEnd", { type: "success", slot });
+
+			return deleted;
+		} catch (e) {
+			const sanitizedError = sanitiseError(e);
+
+			this.#emitCustomEvent(":deleteEnd", {
+				type: "error",
+				error: sanitizedError,
+				slot,
+			});
+
+			throw sanitizedError;
+		}
 	}
 
 	async deleteAllSaveSlots(): Promise<unknown> {
@@ -863,8 +889,7 @@ class SugarboxEngine<
 								type: "error",
 								fromVersion: currentSaveVersion,
 								toVersion: to,
-								error:
-									error instanceof Error ? error : new Error(String(error)),
+								error: sanitiseError(error),
 							});
 							throw error;
 						}
@@ -889,7 +914,7 @@ class SugarboxEngine<
 					this.#index = originalIndex;
 
 					// Rethrow
-					throw new Error(e instanceof Error ? e.message : String(e));
+					throw sanitiseError(e);
 				}
 			}
 			case "newerSave": {
@@ -1347,7 +1372,7 @@ class SugarboxEngine<
 		} catch (e) {
 			this.#emitCustomEvent(endEvent, {
 				type: "error",
-				error: e instanceof Error ? e : new Error(String(e)),
+				error: sanitiseError(e),
 			});
 
 			throw e;
@@ -1428,5 +1453,10 @@ const decompressJsonStringIfCompressed = async (
 	isStringJsonObjectOrCompressedString(possiblyCompressedString) === "json"
 		? possiblyCompressedString
 		: decompress(possiblyCompressedString, SAVE_COMPRESSION_FORMAT);
+
+const sanitiseError = (possibleError: unknown) =>
+	possibleError instanceof Error
+		? possibleError
+		: new Error(String(possibleError));
 
 export { SugarboxEngine };
