@@ -1272,7 +1272,7 @@ describe("Events", () => {
 
 	test("should emit save and load events", async () => {
 		// Save events
-		let saveStartEvent: null | undefined;
+		let saveStartEvent: { slot: string | number } | undefined;
 
 		let saveEndEvent:
 			| {
@@ -1294,7 +1294,7 @@ describe("Events", () => {
 
 		await engine.saveToSaveSlot(1);
 
-		expect(saveStartEvent).toBeNull();
+		expect(saveStartEvent).not.toBeUndefined();
 
 		expect(saveEndEvent).not.toBeUndefined();
 
@@ -1302,7 +1302,7 @@ describe("Events", () => {
 		saveEndListener();
 
 		// Load events
-		let loadStartEvent: null | undefined;
+		let loadStartEvent: { slot: string | number } | undefined;
 
 		let loadEndEvent:
 			| {
@@ -1324,7 +1324,7 @@ describe("Events", () => {
 
 		await engine.loadFromSaveSlot(1);
 
-		expect(loadStartEvent).toBeNull();
+		expect(loadStartEvent).not.toBeUndefined();
 
 		expect(loadEndEvent).not.toBeUndefined();
 

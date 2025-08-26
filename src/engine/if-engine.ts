@@ -74,6 +74,22 @@ type Config<TState extends Record<string, unknown>> = Partial<
 	SugarBoxConfig<TState>
 >;
 
+type SaveStartEvent = { slot: "autosave" | "export" | "recent" | number };
+
+type SaveEndEvent =
+	| { type: "success"; slot: "autosave" | "export" | "recent" | number }
+	| {
+			type: "error";
+			error: Error;
+			slot: "autosave" | "export" | "recent" | number;
+	  };
+
+type DeleteStartEvent = { slot: "autosave" | number };
+
+type DeleteEndEvent =
+	| { type: "success"; slot: "autosave" | number }
+	| { type: "error"; error: Error; slot: "autosave" | number };
+
 /** Events fired from a `SugarBoxEngine` instance */
 type SugarBoxEvents<TPassageData, TStateVariables> = {
 	":passageChange": Readonly<{
@@ -94,19 +110,17 @@ type SugarBoxEvents<TPassageData, TStateVariables> = {
 
 	// ":init": null;
 
-	":saveStart": null;
+	":saveStart": SaveStartEvent;
 
-	":saveEnd": { type: "success" } | { type: "error"; error: Error };
+	":saveEnd": SaveEndEvent;
 
-	":loadStart": null;
+	":loadStart": SaveStartEvent;
 
-	":loadEnd": { type: "success" } | { type: "error"; error: Error };
+	":loadEnd": SaveEndEvent;
 
-	":deleteStart": { slot: "autosave" | number };
+	":deleteStart": DeleteStartEvent;
 
-	":deleteEnd":
-		| { type: "success"; slot: "autosave" | number }
-		| { type: "error"; error: Error; slot: "autosave" | number };
+	":deleteEnd": DeleteEndEvent;
 
 	":migrationStart": Readonly<{
 		fromVersion: SugarBoxSemanticVersionString;
@@ -699,6 +713,7 @@ class SugarboxEngine<
 	async saveToSaveSlot(saveSlot?: number): Promise<void> {
 		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
 			"save",
+			saveSlot,
 			async () => {
 				const { persistence, saveVersion, compressSave } = this.#config;
 
@@ -735,6 +750,7 @@ class SugarboxEngine<
 	async loadFromSaveSlot(saveSlot?: number): Promise<void> {
 		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
 			"load",
+			saveSlot,
 			async () => {
 				const { persistence } = this.#config;
 
@@ -966,6 +982,7 @@ class SugarboxEngine<
 	async loadRecentSave(): Promise<void> {
 		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
 			"load",
+			"recent",
 			async () => {
 				const mostRecentSave = await this.#getMostRecentSave();
 
@@ -982,6 +999,7 @@ class SugarboxEngine<
 	async saveToExport(): Promise<string> {
 		return this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
 			"save",
+			"export",
 			async () => {
 				const exportData: SugarBoxExportData<
 					TVariables,
@@ -1019,6 +1037,7 @@ class SugarboxEngine<
 	async loadFromExport(data: string): Promise<void> {
 		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
 			"load",
+			"export",
 			async () => {
 				const jsonString = await decompressJsonStringIfCompressed(data);
 
@@ -1352,12 +1371,14 @@ class SugarboxEngine<
 		TCallBackReturnValue,
 	>(
 		operation: "save" | "load",
+		saveSlot: number | "autosave" | "export" | "recent" | undefined,
 		callback: () => Promise<TCallBackReturnValue>,
 	): Promise<TCallBackReturnValue> {
-		this.#emitCustomEvent(
-			operation === "save" ? ":saveStart" : ":loadStart",
-			null,
-		);
+		const slot = saveSlot ?? "autosave";
+
+		this.#emitCustomEvent(operation === "save" ? ":saveStart" : ":loadStart", {
+			slot,
+		});
 
 		const endEvent = operation === "save" ? ":saveEnd" : ":loadEnd";
 
@@ -1366,6 +1387,7 @@ class SugarboxEngine<
 
 			this.#emitCustomEvent(endEvent, {
 				type: "success",
+				slot,
 			});
 
 			return result;
@@ -1373,6 +1395,7 @@ class SugarboxEngine<
 			this.#emitCustomEvent(endEvent, {
 				type: "error",
 				error: sanitiseError(e),
+				slot,
 			});
 
 			throw e;
