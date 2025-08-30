@@ -374,15 +374,11 @@ class SugarboxEngine<
 		// If there's any stored achievements or settings, load them in place of the data provided
 		// If the user want to empty the acheivements or settings, they can explicitly do so with the `set***()` methods
 		// Also load the most recent save if `loadOnStart` is true
-		const [__, ___, mostRecentSave] = await Promise.allSettled([
+		await Promise.allSettled([
 			engine.#loadAchievements(),
 			engine.#loadSettings(),
-			loadOnStart ? engine.#getMostRecentSave() : Promise.resolve(null),
+			loadOnStart ? engine.loadRecentSave() : Promise.resolve(null),
 		]);
-
-		if (mostRecentSave.status === "fulfilled" && mostRecentSave.value) {
-			engine.loadSaveFromData(mostRecentSave.value);
-		}
 
 		return engine;
 	}
@@ -980,7 +976,7 @@ class SugarboxEngine<
 		}
 	}
 
-	/** Loads the most recent save */
+	/** Loads the most recent save, if any. Doesn't throw */
 	async loadRecentSave(): Promise<void> {
 		await this.#emitSaveOrLoadEventWhenAttemptingToSaveOrLoadInCallback(
 			"load",
@@ -988,11 +984,7 @@ class SugarboxEngine<
 			async () => {
 				const mostRecentSave = await this.#getMostRecentSave();
 
-				if (!mostRecentSave) {
-					throw new Error("No saves found");
-				}
-
-				this.loadSaveFromData(mostRecentSave);
+				if (mostRecentSave) this.loadSaveFromData(mostRecentSave);
 			},
 		);
 	}
