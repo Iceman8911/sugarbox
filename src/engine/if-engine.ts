@@ -502,7 +502,7 @@ class SugarboxEngine<
 
 	/** Immer-style producer for setting achievements
 	 *
-	 * If you need to replace the entire achievement object, *return a new object* (also make sure that undesirable properties are explicitly set to `null` else they'd still be included in the state) instead of directly *assigning the value
+	 * If you need to replace the entire achievement object, *return a new object*
 	 */
 	async setAchievements(
 		producer:
@@ -524,7 +524,7 @@ class SugarboxEngine<
 
 	/** Immer-style producer for setting settings
 	 *
-	 * If you need to replace the entire settings object, *return a new object* (also make sure that undesirable properties are explicitly set to `null` else they'd still be included in the state) instead of directly *assigning the value
+	 * If you need to replace the entire settings object, *return a new object*
 	 */
 	async setSettings(
 		producer:
