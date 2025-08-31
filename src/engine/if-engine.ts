@@ -91,7 +91,7 @@ type DeleteEndEvent =
 	| { type: "error"; error: Error; slot: "autosave" | number };
 
 /** Events fired from a `SugarBoxEngine` instance */
-type SugarBoxEvents<TPassageData, TStateVariables> = {
+type SugarBoxEvents<TPassageData, TStateVariables, TAchievements, TSettings> = {
 	":passageChange": Readonly<{
 		/** The previous passage before the transition */
 		oldPassage: TPassageData | null;
@@ -106,6 +106,22 @@ type SugarBoxEvents<TPassageData, TStateVariables> = {
 
 		/** The current state of all variables after the change */
 		newState: TStateVariables;
+	}>;
+
+	":achievementChange": Readonly<{
+		/** The previous state of all achievements before the change */
+		old: TAchievements;
+
+		/** The current state of all achievements after the change */
+		new: TAchievements;
+	}>;
+
+	":settingChange": Readonly<{
+		/** The previous state of all settings before the change */
+		old: TSettings;
+
+		/** The current state of all settings after the change */
+		new: TSettings;
 	}>;
 
 	// ":init": null;
@@ -509,11 +525,18 @@ class SugarboxEngine<
 			| ((state: TAchievementData) => void)
 			| ((state: TAchievementData) => TAchievementData),
 	): Promise<void> {
+		const old = clone(this.#achievements);
+
 		const result = producer(this.#achievements);
 
 		if (result) {
 			this.#achievements = result;
 		}
+
+		this.#emitCustomEvent(":achievementChange", {
+			new: this.#achievements,
+			old,
+		});
 
 		await this.#saveAchievements();
 	}
@@ -531,11 +554,15 @@ class SugarboxEngine<
 			| ((state: TSettingsData) => void)
 			| ((state: TSettingsData) => TSettingsData),
 	): Promise<void> {
+		const old = clone(this.#settings);
+
 		const result = producer(this.#settings);
 
 		if (result) {
 			this.#settings = result;
 		}
+
+		this.#emitCustomEvent(":settingChange", { new: this.#settings, old });
 
 		await this.#saveSettings();
 	}
@@ -639,10 +666,24 @@ class SugarboxEngine<
 	 *
 	 * @returns a function that can be used to unsubscribe from the event.
 	 */
-	on<TEventType extends keyof SugarBoxEvents<TPassageType, TVariables>>(
+	on<
+		TEventType extends keyof SugarBoxEvents<
+			TPassageType,
+			TVariables,
+			TAchievementData,
+			TSettingsData
+		>,
+	>(
 		type: TEventType,
 		listener: (
-			event: CustomEvent<SugarBoxEvents<TPassageType, TVariables>[TEventType]>,
+			event: CustomEvent<
+				SugarBoxEvents<
+					TPassageType,
+					TVariables,
+					TAchievementData,
+					TSettingsData
+				>[TEventType]
+			>,
 		) => void,
 		options?: boolean | AddEventListenerOptions,
 	): () => void {
@@ -655,12 +696,24 @@ class SugarboxEngine<
 	}
 
 	/** Unsubscribe from an event */
-	off<TEventType extends keyof SugarBoxEvents<TPassageType, TVariables>>(
+	off<
+		TEventType extends keyof SugarBoxEvents<
+			TPassageType,
+			TVariables,
+			TAchievementData,
+			TSettingsData
+		>,
+	>(
 		type: TEventType,
 		listener:
 			| ((
 					event: CustomEvent<
-						SugarBoxEvents<TPassageType, TVariables>[TEventType]
+						SugarBoxEvents<
+							TPassageType,
+							TVariables,
+							TAchievementData,
+							TSettingsData
+						>[TEventType]
 					>,
 			  ) => void)
 			| null,
@@ -1319,11 +1372,28 @@ class SugarboxEngine<
 	}
 
 	#createCustomEvent<
-		TEventType extends keyof SugarBoxEvents<TPassageType, TVariables>,
+		TEventType extends keyof SugarBoxEvents<
+			TPassageType,
+			TVariables,
+			TAchievementData,
+			TSettingsData
+		>,
 	>(
 		name: TEventType,
-		data: SugarBoxEvents<TPassageType, TVariables>[TEventType],
-	): CustomEvent<SugarBoxEvents<TPassageType, TVariables>[TEventType]> {
+		data: SugarBoxEvents<
+			TPassageType,
+			TVariables,
+			TAchievementData,
+			TSettingsData
+		>[TEventType],
+	): CustomEvent<
+		SugarBoxEvents<
+			TPassageType,
+			TVariables,
+			TAchievementData,
+			TSettingsData
+		>[TEventType]
+	> {
 		return new CustomEvent(name, { detail: data });
 	}
 
@@ -1332,10 +1402,20 @@ class SugarboxEngine<
 	}
 
 	#emitCustomEvent<
-		TEventType extends keyof SugarBoxEvents<TPassageType, TVariables>,
+		TEventType extends keyof SugarBoxEvents<
+			TPassageType,
+			TVariables,
+			TAchievementData,
+			TSettingsData
+		>,
 	>(
 		name: TEventType,
-		data: SugarBoxEvents<TPassageType, TVariables>[TEventType],
+		data: SugarBoxEvents<
+			TPassageType,
+			TVariables,
+			TAchievementData,
+			TSettingsData
+		>[TEventType],
 	): boolean {
 		const dispatchResult = this.#dispatchCustomEvent(
 			this.#createCustomEvent(name, data),

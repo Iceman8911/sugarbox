@@ -82,11 +82,21 @@ async function initEngine() {
 	});
 }
 
-async function initEngineWithPersistence(
+async function initEngineWithExtraSettings<
+	TAchievementData extends Record<string, unknown>,
+	TSettingsData extends Record<string, unknown>,
+>(
 	persistence: ReturnType<typeof createPersistenceAdapter>,
+	achievements?: TAchievementData,
+	settings?: TSettingsData,
 ) {
 	// This is a simplified version of the main initEngine for test purposes
-	return SugarboxEngine.init({
+	return SugarboxEngine.init<
+		string,
+		Record<string, unknown>,
+		TAchievementData,
+		TSettingsData
+	>({
 		name: "Test",
 		startPassage: { name: "Start", passage: "This is the start passage" },
 		config: {
@@ -94,7 +104,10 @@ async function initEngineWithPersistence(
 		},
 		otherPassages: [],
 		variables: {},
-		achievements: {} as Record<string, unknown>,
+		//@ts-expect-error Generic woes
+		achievements: achievements ?? {},
+		//@ts-expect-error Generic woes
+		settings: settings ?? {},
 	});
 }
 
@@ -2238,27 +2251,168 @@ describe("Passage Management", () => {
 describe("Achievements and Settings", () => {
 	test("achievements should be settable and persist across sessions", async () => {
 		const persistence = createPersistenceAdapter();
-		const engine1 = await initEngineWithPersistence(persistence);
+		const engine1 = await initEngineWithExtraSettings(persistence);
 
 		const achievements = { unlocked: ["First Quest"], points: 10 };
 
 		await engine1.setAchievements(() => achievements);
 		expect(engine1.achievements).toEqual(achievements);
 
-		const engine2 = await initEngineWithPersistence(persistence);
+		const engine2 = await initEngineWithExtraSettings(persistence);
 		expect(engine2.achievements).toEqual(achievements);
 	});
 
 	test("settings should be settable and persist across sessions", async () => {
 		const persistence = createPersistenceAdapter();
-		const engine1 = await initEngineWithPersistence(persistence);
+		const engine1 = await initEngineWithExtraSettings(persistence);
 
 		const settings = { volume: 0.5, difficulty: "hard" };
 		await engine1.setSettings((_) => settings);
 		expect(engine1.settings).toEqual(settings);
 
-		const engine2 = await initEngineWithPersistence(persistence);
+		const engine2 = await initEngineWithExtraSettings(persistence);
 		expect(engine2.settings).toEqual(settings);
+	});
+
+	test("should emit achievementChange event with old and new state", async () => {
+		type AchievementData = {
+			firstQuest: boolean;
+			secondQuest?: boolean;
+			points: number;
+		};
+
+		const initialAchievements: AchievementData = {
+			firstQuest: true,
+			points: 10,
+		};
+
+		const persistence = createPersistenceAdapter();
+		const engine = await initEngineWithExtraSettings(
+			persistence,
+			initialAchievements,
+		);
+
+		let achievementEvent:
+			| {
+					old: AchievementData;
+					new: AchievementData;
+			  }
+			| undefined;
+
+		const listener = engine.on(":achievementChange", ({ detail }) => {
+			achievementEvent = detail;
+		});
+
+		// Update achievements
+		await engine.setAchievements((ach) => {
+			ach.secondQuest = true;
+			ach.points = 25;
+		});
+
+		expect(achievementEvent?.old).toEqual({ firstQuest: true, points: 10 });
+		expect(achievementEvent?.new).toEqual({
+			firstQuest: true,
+			secondQuest: true,
+			points: 25,
+		});
+
+		listener();
+	});
+
+	test("should emit settingChange event with old and new state", async () => {
+		type SettingsData = {
+			volume: number;
+			difficulty: string;
+			language?: string;
+		};
+
+		const initialSettings: SettingsData = {
+			difficulty: "normal",
+			volume: 0.8,
+		};
+
+		const persistence = createPersistenceAdapter();
+		const engine = await initEngineWithExtraSettings(
+			persistence,
+			undefined,
+			initialSettings,
+		);
+
+		let settingEvent:
+			| {
+					old: SettingsData;
+					new: SettingsData;
+			  }
+			| undefined;
+
+		const listener = engine.on(":settingChange", ({ detail }) => {
+			settingEvent = detail;
+		});
+
+		// Update settings
+		await engine.setSettings((settings) => {
+			settings.volume = 0.5;
+			settings.language = "en";
+		});
+
+		expect(settingEvent?.old).toEqual({ volume: 0.8, difficulty: "normal" });
+		expect(settingEvent?.new).toEqual({
+			volume: 0.5,
+			difficulty: "normal",
+			language: "en",
+		});
+
+		listener();
+	});
+
+	test("should emit events when replacing entire achievement/setting objects", async () => {
+		const persistence = createPersistenceAdapter();
+		const engine = await initEngineWithExtraSettings(persistence);
+
+		let achievementEvent:
+			| {
+					old: typeof engine.achievements;
+					new: typeof engine.achievements;
+			  }
+			| undefined;
+		let settingEvent:
+			| {
+					old: typeof engine.settings;
+					new: typeof engine.settings;
+			  }
+			| undefined;
+
+		engine.on(":achievementChange", ({ detail }) => {
+			achievementEvent = detail;
+		});
+
+		engine.on(":settingChange", ({ detail }) => {
+			settingEvent = detail;
+		});
+
+		// Replace entire achievement object
+		await engine.setAchievements(() => ({
+			completedTutorial: true,
+			score: 100,
+		}));
+
+		expect(achievementEvent?.old).toEqual({});
+		expect(achievementEvent?.new).toEqual({
+			completedTutorial: true,
+			score: 100,
+		});
+
+		// Replace entire settings object
+		await engine.setSettings(() => ({
+			theme: "dark",
+			autoSave: true,
+		}));
+
+		expect(settingEvent?.old).toEqual({});
+		expect(settingEvent?.new).toEqual({
+			theme: "dark",
+			autoSave: true,
+		});
 	});
 });
 
