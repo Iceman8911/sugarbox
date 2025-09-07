@@ -270,7 +270,7 @@ class SugarboxEngine<
 		this.#settings = settings;
 
 		if (saveSlots && saveSlots < MINIMUM_SAVE_SLOTS)
-			throw new Error(`Invalid number of save slots: ${saveSlots}`);
+			throw Error(`Invalid number of save slots: ${saveSlots}`);
 
 		this.#config = { ...defaultConfig, ...config };
 
@@ -624,7 +624,7 @@ class SugarboxEngine<
 		passageId: string = this.passageId,
 	): SnapshotWithMetadata<TVariables> {
 		if (!this.#isPassageIdValid(passageId))
-			throw new Error(
+			throw Error(
 				`Cannot navigate: Passage with ID '${passageId}' not found. Add it using addPassage().`,
 			);
 
@@ -746,7 +746,7 @@ class SugarboxEngine<
 			const semanticVersionString = from;
 
 			if (this.#saveMigrationMap.has(semanticVersionString)) {
-				throw new Error(
+				throw Error(
 					`A migration for version ${from} already exists. Cannot register multiple migrations for the same version.`,
 				);
 			}
@@ -812,7 +812,7 @@ class SugarboxEngine<
 				const serializedSaveData = await persistence.get(saveSlotKey);
 
 				if (!serializedSaveData) {
-					throw new Error(`No save data found for slot ${saveSlot}`);
+					throw Error(`No save data found for slot ${saveSlot}`);
 				}
 
 				const jsonString =
@@ -929,7 +929,7 @@ class SugarboxEngine<
 					while (currentSaveVersion !== engineVersion) {
 						const migratorData = this.#saveMigrationMap.get(currentSaveVersion);
 						if (!migratorData) {
-							throw new Error(
+							throw Error(
 								`No migrator function found for save version ${currentSaveVersion}. Required to migrate to engine version ${engineVersion}.`,
 							);
 						}
@@ -971,7 +971,7 @@ class SugarboxEngine<
 						break;
 					}
 
-					throw new Error(
+					throw Error(
 						`Save with version ${currentSaveVersion} returned null during migration`,
 					);
 				} catch (e) {
@@ -985,7 +985,7 @@ class SugarboxEngine<
 				}
 			}
 			case "newerSave": {
-				throw new Error(
+				throw Error(
 					`Save with version ${saveVersion} is too new for the engine with version ${engineVersion}`,
 				);
 			}
@@ -1108,7 +1108,7 @@ class SugarboxEngine<
 		persistence: SugarBoxConfig["persistence"],
 	): asserts persistence is NonNullable<SugarBoxConfig["persistence"]> {
 		if (!persistence) {
-			throw new Error("Unable to save. No persistence adapter");
+			throw Error("Unable to save. No persistence adapter");
 		}
 	}
 
@@ -1118,7 +1118,7 @@ class SugarboxEngine<
 		const ERROR_TEXT = "Unable to save.";
 
 		if (saveSlot < MINIMUM_SAVE_SLOT_INDEX || saveSlot >= MAX_SAVE_SLOTS) {
-			throw new Error(`${ERROR_TEXT} Save slot ${saveSlot} is invalid.`);
+			throw Error(`${ERROR_TEXT} Save slot ${saveSlot} is invalid.`);
 		}
 	}
 
@@ -1552,9 +1552,7 @@ const decompressJsonStringIfCompressed = async (
 		: decompress(possiblyCompressedString, SAVE_COMPRESSION_FORMAT);
 
 const sanitiseError = (possibleError: unknown) =>
-	possibleError instanceof Error
-		? possibleError
-		: new Error(String(possibleError));
+	possibleError instanceof Error ? possibleError : Error(String(possibleError));
 
 const getRandomInteger = () => Math.floor(Math.random() * 2 ** 32);
 
