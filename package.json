@@ -33,7 +33,7 @@
 		"test:watch": "bun test --watch",
 		"test:coverage": "bun test --coverage",
 		"release": "bumpp --commit --push --tag",
-		"publish:ci": "bun publish --access public --no-git-checks",
+		"publish:ci": "bunx npm publish --access public --no-git-checks",
 		"prepare": "husky"
 	},
 	"devDependencies": {
