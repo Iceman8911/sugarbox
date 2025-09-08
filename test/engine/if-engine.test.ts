@@ -2416,6 +2416,164 @@ describe("Achievements and Settings", () => {
 	});
 });
 
+describe("Event Emission Control", () => {
+	test("setVars with emitEvent=false should not emit stateChange event", async () => {
+		let stateChangeEmitted = false;
+		const listener = engine.on(":stateChange", () => {
+			stateChangeEmitted = true;
+		});
+
+		engine.setVars((state) => {
+			state.player.name = "NoEventName";
+		}, false);
+
+		expect(stateChangeEmitted).toBe(false);
+		expect(engine.vars.player.name).toBe("NoEventName");
+
+		listener();
+	});
+
+	test("setAchievements with emitEvent=false should not emit achievementChange event", async () => {
+		const persistence = createPersistenceAdapter();
+		const engine = await initEngineWithExtraSettings(persistence);
+
+		let achievementChangeEmitted = false;
+		const listener = engine.on(":achievementChange", () => {
+			achievementChangeEmitted = true;
+		});
+
+		await engine.setAchievements((ach) => {
+			ach.testAchievement = true;
+		}, false);
+
+		expect(achievementChangeEmitted).toBe(false);
+		expect(engine.achievements.testAchievement).toBe(true);
+
+		listener();
+	});
+
+	test("setSettings with emitEvent=false should not emit settingChange event", async () => {
+		const persistence = createPersistenceAdapter();
+		const engine = await initEngineWithExtraSettings(persistence);
+
+		let settingChangeEmitted = false;
+		const listener = engine.on(":settingChange", () => {
+			settingChangeEmitted = true;
+		});
+
+		await engine.setSettings((settings) => {
+			settings.testSetting = "value";
+		}, false);
+
+		expect(settingChangeEmitted).toBe(false);
+		expect(engine.settings.testSetting).toBe("value");
+
+		listener();
+	});
+
+	test("methods should still emit events when emitEvent=true (default behavior)", async () => {
+		const persistence = createPersistenceAdapter();
+		const engine = await initEngineWithExtraSettings(persistence);
+
+		let stateChangeEmitted = false;
+		let achievementChangeEmitted = false;
+		let settingChangeEmitted = false;
+
+		const stateListener = engine.on(":stateChange", () => {
+			stateChangeEmitted = true;
+		});
+		const achievementListener = engine.on(":achievementChange", () => {
+			achievementChangeEmitted = true;
+		});
+		const settingListener = engine.on(":settingChange", () => {
+			settingChangeEmitted = true;
+		});
+
+		engine.setVars((state) => {
+			state.testVar = "value";
+		}, true);
+
+		await engine.setAchievements((ach) => {
+			ach.testAchievement = true;
+		}, true);
+
+		await engine.setSettings((settings) => {
+			settings.testSetting = "value";
+		}, true);
+
+		expect(stateChangeEmitted).toBe(true);
+		expect(achievementChangeEmitted).toBe(true);
+		expect(settingChangeEmitted).toBe(true);
+
+		stateListener();
+		achievementListener();
+		settingListener();
+	});
+
+	test("emitEvent parameter prevents infinite recursion in event listeners", async () => {
+		const persistence = createPersistenceAdapter();
+		const engine = await initEngineWithExtraSettings(persistence);
+
+		let stateChangeCount = 0;
+		let achievementChangeCount = 0;
+		let settingChangeCount = 0;
+
+		const stateListener = engine.on(":stateChange", () => {
+			stateChangeCount++;
+			if (stateChangeCount < 3) {
+				engine.setVars((state) => {
+					state.recursionTest = stateChangeCount;
+				}, false); // Prevent infinite recursion
+			}
+		});
+
+		const achievementListener = engine.on(":achievementChange", () => {
+			achievementChangeCount++;
+			if (achievementChangeCount < 3) {
+				engine.setAchievements((ach) => {
+					ach.recursionTest = achievementChangeCount;
+				}, false); // Prevent infinite recursion
+			}
+		});
+
+		const settingListener = engine.on(":settingChange", () => {
+			settingChangeCount++;
+			if (settingChangeCount < 3) {
+				engine.setSettings((settings) => {
+					settings.recursionTest = settingChangeCount;
+				}, false); // Prevent infinite recursion
+			}
+		});
+
+		// Trigger initial events
+		engine.setVars((state) => {
+			state.initialTrigger = true;
+		});
+
+		await engine.setAchievements((ach) => {
+			ach.initialTrigger = true;
+		});
+
+		await engine.setSettings((settings) => {
+			settings.initialTrigger = true;
+		});
+
+		// Should only fire once due to emitEvent=false in listeners
+		expect(stateChangeCount).toBe(1);
+		expect(achievementChangeCount).toBe(1);
+		expect(settingChangeCount).toBe(1);
+
+		// But the values should still be updated
+		expect(engine.vars.recursionTest).toBe(1);
+		expect(engine.achievements.recursionTest).toBe(1);
+		expect(engine.settings.recursionTest).toBe(1);
+
+		stateListener();
+		achievementListener();
+		settingListener();
+	});
+});
+
 describe("PRNG and Random Number Generation", () => {
 	test("should generate deterministic random numbers with fixed seed", async () => {
 		const fixedSeed = 12345;

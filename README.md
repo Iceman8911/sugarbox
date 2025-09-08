@@ -219,6 +219,8 @@ config: {
 ### Modifying the state
 To modify the state, you can use the `setVars` method on the engine instance. This method takes a callback function that receives the current state and allows you to modify it. The changes made in this callback will be recorded in a new snapshot.
 
+The `setVars` method also accepts an optional second parameter `emitEvent` (defaults to `true`). When set to `false`, it prevents the `:stateChange` event from being emitted. This is useful when calling `setVars` within a `:stateChange` event listener to avoid infinite recursion.
+
 To change specific properties:
 
 ```typescript
@@ -384,6 +386,8 @@ await engine.setSettings((settings) => {
 ```
 
 Both methods accept a callback that can mutate or return a new object. The data will be persisted if a persistence adapter is configured.
+
+Both `setAchievements` and `setSettings` also accept an optional second parameter `emitEvent` (defaults to `true`). When set to `false`, it prevents their respective events (`:achievementChange` and `:settingChange`) from being emitted. This is useful when calling these methods within their event listeners to avoid infinite recursion.
 
 ## Cache Adapter
 
@@ -620,6 +624,8 @@ Sugarbox emits several custom events you can listen to with `on()`:
 
 - `:passageChange` — Fired when the passage changes.
 - `:stateChange` — Fired when the state changes.
+- `:achievementChange` — Fired when achievements are updated.
+- `:settingChange` — Fired when settings are updated.
 - `:saveStart` / `:saveEnd` — Fired before/after a save.
 - `:loadStart` / `:loadEnd` — Fired before/after a load.
 - `:migrationStart` / `:migrationEnd` — Fired before/after save migration operations.
@@ -639,6 +645,23 @@ engine.on(":stateChange", (e) => {
   if (e.detail.oldState.playerHealth !== e.detail.newState.playerHealth) {
     console.log(`Health changed from ${e.detail.oldState.playerHealth} to ${e.detail.newState.playerHealth}`);
   }
+});
+
+// Example: Preventing infinite recursion with emitEvent parameter
+engine.on(":stateChange", (e) => {
+  // If player health drops below 10, automatically restore to 100
+  if (e.detail.newState.playerHealth < 10) {
+    engine.setVars((state) => {
+      state.playerHealth = 100;
+    }, false); // emitEvent=false prevents infinite recursion
+  }
+});
+
+engine.on(":achievementChange", (e) => {
+  // When achievements change, update a counter without triggering another event
+  engine.setAchievements((ach) => {
+    ach.totalUnlocked = Object.keys(ach).length;
+  }, false); // emitEvent=false prevents infinite recursion
 });
 ```
 
@@ -696,7 +719,7 @@ Here's a quick overview of the main methods and properties:
 | Method / Getter         | Description |
 |------------------------ |------------|
 | `vars`                  | Get current state variables (readonly) |
-| `setVars(fn)`           | Update state variables (immer-style) |
+| `setVars(fn, emitEvent?)` | Update state variables (immer-style) |
 | `passageId`             | Get current passage id |
 | `passage`               | Get current passage data |
 | `index`                 | Get current position in state history |
@@ -720,9 +743,9 @@ Here's a quick overview of the main methods and properties:
 | `saveToExport()`        | Export save as string (async) |
 | `loadFromExport(str)`   | Load save from string (async) |
 | `achievements`          | Get achievements (readonly) |
-| `setAchievements(fn)`   | Update achievements (async) |
+| `setAchievements(fn, emitEvent?)` | Update achievements (async) |
 | `settings`              | Get settings (readonly) |
-| `setSettings(fn)`       | Update settings (async) |
+| `setSettings(fn, emitEvent?)` | Update settings (async) |
 | `random`                | Get a deterministic random number |
 | `name`                  | Engine name (readonly) |
 

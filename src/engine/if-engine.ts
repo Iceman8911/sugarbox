@@ -412,11 +412,14 @@ class SugarboxEngine<
 	 * Use this **solely** for setting values. If you must read a value, use `this.vars`
 	 *
 	 * **If you need to replace the entire state, *return a new object* instead of directly *assigning the value***
+	 *
+	 * @param [emitEvent=true] If true, a ":stateChange" event will be emitted. Set this to false if you use it within a `:stateChange` listener
 	 */
 	setVars(
 		producer:
 			| ((variables: TVariables) => void)
 			| ((variables: TVariables) => TVariables),
+		emitEvent = true,
 	): void {
 		const self = this;
 
@@ -465,10 +468,12 @@ class SugarboxEngine<
 
 		const newState = self.#getStateAtIndex(self.#index);
 
-		self.#emitCustomEvent(":stateChange", {
-			newState,
-			oldState,
-		});
+		if (emitEvent) {
+			self.#emitCustomEvent(":stateChange", {
+				newState,
+				oldState,
+			});
+		}
 	}
 
 	/** Returns the id to the appropriate passage for the current state */
@@ -519,11 +524,14 @@ class SugarboxEngine<
 	/** Immer-style producer for setting achievements
 	 *
 	 * If you need to replace the entire achievement object, *return a new object*
+	 *
+	 * @param [emitEvent=true] If true, an ":achievementChange" event will be emitted. Set this to false if you use this within an `:achievementChange` listener
 	 */
 	async setAchievements(
 		producer:
 			| ((state: TAchievementData) => void)
 			| ((state: TAchievementData) => TAchievementData),
+		emitEvent = true,
 	): Promise<void> {
 		const old = clone(this.#achievements);
 
@@ -533,10 +541,12 @@ class SugarboxEngine<
 			this.#achievements = result;
 		}
 
-		this.#emitCustomEvent(":achievementChange", {
-			new: this.#achievements,
-			old,
-		});
+		if (emitEvent) {
+			this.#emitCustomEvent(":achievementChange", {
+				new: this.#achievements,
+				old,
+			});
+		}
 
 		await this.#saveAchievements();
 	}
@@ -548,11 +558,14 @@ class SugarboxEngine<
 	/** Immer-style producer for setting settings
 	 *
 	 * If you need to replace the entire settings object, *return a new object*
+	 *
+	 * @param [emitEvent=true] If true, a ":settingChange" event will be emitted. Set this to false if you use this within a `:settingChange` listener
 	 */
 	async setSettings(
 		producer:
 			| ((state: TSettingsData) => void)
 			| ((state: TSettingsData) => TSettingsData),
+		emitEvent = true,
 	): Promise<void> {
 		const old = clone(this.#settings);
 
@@ -562,7 +575,9 @@ class SugarboxEngine<
 			this.#settings = result;
 		}
 
-		this.#emitCustomEvent(":settingChange", { new: this.#settings, old });
+		if (emitEvent) {
+			this.#emitCustomEvent(":settingChange", { new: this.#settings, old });
+		}
 
 		await this.#saveSettings();
 	}
